@@ -1,0 +1,28 @@
+name: GitGuardian scan
+on: [push, pull_request]
+jobs:
+  scanning:
+    name: GitGuardian scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: GitGuardian/ggshield/actions/secret@v1.37.0
+        env:
+          GITHUB_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          GITHUB_PUSH_BASE_SHA: ${{ github.event.before.base.sha }}
+          GITHUB_PULL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: GitGuardian scan results
+        run: echo "GitGuardian scan completed"
+      - name: Send results to NTFY channel
+        run: |
+          curl -H "Title: GitHub Actions GitGuardian Scan Report" \
+              -H "Authorization: Bearer ${{ secrets.NTFY_TOKEN }}" \
+              -H "Priority: default" \
+              -H "Markdown: yes" \
+              -H "Tags: bell,github-actions,github" \
+              -H "Click: ${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+              -d "A **GitGuardian scan report** for a GitHub Actions workflow has been generated for the repository '${{ github.repository }}' on branch '${{ github.ref }}' at the date and time of '${{ github.event.head_commit.timestamp }}'." \
+              ${{ secrets.NTFY_URL }}

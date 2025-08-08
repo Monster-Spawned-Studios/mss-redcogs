@@ -608,6 +608,8 @@ FodyWeavers.xsd
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+!.vscode/cspell.json
+!.vscode/dicts/*
 !.vscode/*.code-snippets
 
 # Local History for Visual Studio Code
@@ -638,7 +640,8 @@ FodyWeavers.xsd
 .LSOverride
 
 # Icon must end with two \r
-Icon
+Icon
+
 
 # Thumbnails
 ._*
@@ -665,6 +668,9 @@ Temporary Items
 *.ori
 *.orig
 *.tmp
+*-bak
+*-backup
+*.backup
 
 # ---> VirtualEnv
 # Virtualenv

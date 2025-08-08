@@ -1,0 +1,25 @@
+{
+  // Copyright (c) 2025 Monster Spawned Studios | https://monsterspawned.studio | All Rights Reserved.
+  "githubPullRequests.codingAgent.uiIntegration": true,
+  "python.terminal.activateEnvironment": true,
+  // Enable auto-formatting on save
+  "editor.formatOnSave": true,
+  // Enable auto-save feature
+  "files.autoSave": "afterDelay",
+  // Set the auto-save delay to 10000 milliseconds (10 seconds)
+  "files.autoSaveDelay": 10000,
+  // Use the Python extension to manage the virtual environment
+  "python.envFile": "${workspaceFolder}/.env",
+  // Set the current Python interpreter to the one in the PYTHON_VENV environment variable
+  // Preferably set this in your environment variables (less secure),
+  // or using a `.env` file (more secure).
+  // This will ensure that the Python extension uses the correct interpreter for linting, debugging,
+  // and running Python scripts.
+  // "python.defaultInterpreterPath": "${env:PYTHON_DEV_VENV}\\Scripts\\python.exe",
+  // Enable word-based suggestions
+  "editor.wordBasedSuggestions": "matchingDocuments",
+  // Disable the Python language server
+  "python.languageServer": "None",
+  // Set the default formatter to Black
+  "editor.defaultFormatter": "black-formatter.black-formatter",
+}

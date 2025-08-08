@@ -1,0 +1,30 @@
+{
+  "name": "ComfyUI",
+  "author": [
+    "Monster Spawned Studios | https://monsterspawned.studio"
+  ],
+  "version": "0.0.1",
+  "short": "ComfyUI Image Generation And Server Management",
+  "description": "A cog to generate images using the ComfyUI API with support for multiple models and NSFW detection as well as ComfyUI server management using the ComfyUI CLI tool.",
+  "tags": [
+    "comfyui",
+    "image generation",
+    "ai",
+    "image manipulation"
+  ],
+  "requirements": [
+    "nsfw-image-detector",
+    "comfy-cli",
+    "psutil"
+  ],
+  "hidden": false,
+  "min_python_version": [
+    3,
+    11,
+    9
+  ],
+  "min_bot_version": "3.5.20",
+  "end_user_data_statement": "This cog does not persistently store any user data, with the exception of any user-defined LoRAs, LyCORIS models, and embedding related preferences, which are stored on-demand.",
+  "install_msg": "Thank you for installing the ComfyUI cog! Please note that this cog is still in development and may not work as expected. If you encounter any issues, please report them to the developers at https://monsterspawned.studio/contact/.",
+  "type": "COG"
+}

@@ -1,0 +1,55 @@
+{
+  // Copyright (c) 2025 Monster Spawned Studios | https://monsterspawned.studio | All Rights Reserved.
+  "version": "0.2",
+  "language": "en",
+  "ignorePaths": [
+    "node_modules",
+    "dist",
+    "build",
+    "coverage",
+    ".git",
+    ".vscode",
+    ".idea",
+    ".cache",
+    ".DS_Store",
+    "*.log",
+    "*.tmp",
+    "*.bak",
+    "*.swp",
+    "*.swo",
+    "*.orig",
+    "*.backup",
+    "*.gitignore"
+  ],
+  "ignoreRegExpList": [
+    "node_modules",
+    "dist",
+    "build",
+    "coverage",
+    ".git",
+    ".vscode",
+    ".idea",
+  ],
+  "dictionaries": [
+    "en_US",
+    "en-gb",
+    "softwareTerms",
+    "python",
+    "misc",
+    "companies",
+    "filetypes",
+    "npm",
+    "monsterspawnedstudios"
+  ],
+  "dictionaryDefinitions": [
+    {
+      "name": "monsterspawnedstudios",
+      "path": "./dicts/mss.txt",
+      "addWords": true,
+    },
+  ],
+  "reporters": [
+    "default",
+    "@cspell/cspell-json-reporter"
+  ]
+}

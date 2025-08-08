@@ -1,0 +1,65 @@
+about: Describe the changes made in this pull request
+name: Pull Request
+title: "[PR]: <CHANGE-THIS-TO-A-DESCRIPTIVE-TITLE>"
+labels: ["needs-review"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for contributing! Please fill out the following information to help us review your pull request.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary of Changes
+      description: Provide a concise description of the changes made in this pull request.
+      placeholder: "Describe what this PR changes and why."
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation and Context
+      description: Explain the motivation for these changes. Why are they needed?
+      placeholder: "Why is this change necessary?"
+    validations:
+      required: true
+  - type: textarea
+    id: related-issues
+    attributes:
+      label: Related Issues
+      description: List any related issues, tickets, or discussions (e.g., closes #123).
+      placeholder: "Closes #123, relates to #456"
+    validations:
+      required: false
+  - type: textarea
+    id: testing
+    attributes:
+      label: How Has This Been Tested?
+      description: Describe the tests you ran to verify your changes. Provide instructions so we can reproduce.
+      placeholder: "Test steps, commands, or screenshots"
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots (if applicable)
+      description: Add screenshots to help explain your changes.
+      placeholder: "Attach screenshots here"
+    validations:
+      required: false
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      description: Please confirm the following before submitting.
+      options:
+        - label: I have read the contributing guidelines.
+          required: true
+        - label: I have performed a self-review of my code.
+          required: true
+        - label: I have tested the changes and they work as expected.
+          required: true
+        - label: I have added tests that prove my fix is effective or that my feature works.
+          required: false
+        - label: I have added necessary documentation (if appropriate).
+          required: false
