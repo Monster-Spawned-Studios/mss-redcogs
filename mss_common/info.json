@@ -1,0 +1,28 @@
+{
+  "name": "Monster Spawned Studios Common",
+  "author": [
+    "Monster Spawned Studios | https://monsterspawned.studio"
+  ],
+  "version": "0.0.1",
+  "short": "Monster Spawned Studios Common",
+  "description": "A common library for Monster Spawned Studios cogs",
+  "tags": [
+    "monsterspawnedstudios",
+    "common"
+  ],
+  "type": "SHARED_LIBRARY",
+  "requirements": [
+    "psutil",
+    "ffmpeg",
+    "yt-dlp"
+  ],
+  "hidden": true,
+  "min_python_version": [
+    3,
+    11,
+    9
+  ],
+  "min_bot_version": "3.5.20",
+  "end_user_data_statement": "This library does not persistently store any user data.",
+  "install_msg": "Thank you for installing the Monster Spawned Studios Common library! Please note that this library is still in development and may not work as expected. If you encounter any issues, please report them to the developers at https://monsterspawned.studio/contact/."
+}
