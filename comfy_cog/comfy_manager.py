@@ -34,14 +34,16 @@ class ComfyManager(commands.Cog):
         self.configclass = ComfyUIConfig(bot)
         self.dev_mode = self.configclass.dev_mode
         self.config = self.configclass.config
-        self.comfy_process = subprocess.Popen(
-            ["comfy", "launch", "--", "--host", f"{self.config.get_global_flag('address').split(':')[0]}", "--port",
-                f"{self.config.get_global_flag('address').split(':')[1]}"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=False,
-        )
+
+        # Initialize variables as None to avoid errors
+        self.comfy_process = None
+        self.install_path = None
+        self.use_existing_instance = None
+        self.instance_path = None
+        self.overwrite_instance = None
+
+        # Create task to initialize config values
+        self.bot.loop.create_task(self._initialize_comfy_process())
 
         try:
             # Check if the `comfy-cli` command is available and run it to verify it's working
@@ -85,19 +87,21 @@ class ComfyManager(commands.Cog):
             )
             self.bot.log.error(f"Error: {e}")
 
-        # Optional variables for instance management
-        self.install_path = self.config.get_global_flag(
-            "comfyui_instance_path"
-        )  # Custom installation path
-        self.use_existing_instance = self.config.get_global_flag(
-            "comfyui_instance_use_existing"
-        )  # Use/migrate existing instance
-        self.instance_path = self.config.get_global_flag(
-            "comfyui_instance_path"
-        )  # Path to existing instance (if migrating)
-        self.overwrite_instance = self.config.get_global_flag(
-            "comfyui_overwrite_instance"
-        )  # Overwrite the existing instance
+    async def _initialize_comfy_process(self):
+        """Initialize config values asynchronously."""
+        try:
+            address = await self.config.address()
+            if address and ":" in address:
+                host, port = address.split(":", 1)
+                self.comfy_process = subprocess.Popen(
+                    ["comfy", "launch", "--", "--host", host, "--port", port],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    check=False,
+                )
+        except Exception:
+            pass
 
     @commands.hybrid_group(name="comfy_manager")
     @commands.is_owner()

@@ -4,10 +4,9 @@ Copyright (c) 2025 Monster Spawned Studios | https://monsterspawned.studio | All
 A common library for Monster Spawned Studios cogs.
 """
 
+from __init__ import __author__, __version__
 from redbot.core import commands
 from redbot.core.bot import Red
-
-from mss_common import __author__, __version__
 
 
 class MSSCommon(commands.Cog):

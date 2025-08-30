@@ -7,6 +7,8 @@ and manage ComfyUI servers using the ComfyUI CLI tool through
 the manager.py script/module.
 """
 
+from os import getenv
+
 from discord import File, Member
 from redbot.core import Config, commands
 from redbot.core.bot import Red
@@ -19,12 +21,13 @@ class ComfyUIConfig(commands.Cog):
 
     def __init__(self, bot: Red):
         self.bot = bot
+        self.COG_ID = int(getenv("COMFY_COG_ID"))
         self.dev_mode = self.is_development_mode()
         self.config = Config.get_conf(
-            self, identifier=3866432566, force_registration=True
+            self, identifier=self.COG_ID, force_registration=True
         )
 
-        self.experimental_mode = self.dev_mode or self.config.get_global_flag(
+        self.experimental_mode = self.dev_mode or self.config.get_global_setting(
             "enable_experimental_features"
         )
 

@@ -145,7 +145,8 @@ class ComfyUtils(commands.Cog):
                 if torch.hip.device_count() > 0:
                     info["current_device"] = torch.hip.current_device()
                     info["device_name"] = torch.hip.get_device_name(0)
-                    info["device_properties"] = torch.hip.get_device_properties(0)
+                    info["device_properties"] = torch.hip.get_device_properties(
+                        0)
             return info
         except (AttributeError, RuntimeError):
             return {}
@@ -297,7 +298,7 @@ class ComfyUtils(commands.Cog):
         Returns:
             bool: True if the system is 64-bit, False otherwise
         """
-        return platform.machine().lower().contains("64")
+        return "64" in platform.machine().lower()
 
     def is_arm(self) -> bool:
         """
@@ -306,7 +307,7 @@ class ComfyUtils(commands.Cog):
         Returns:
             bool: True if the system is ARM, False otherwise
         """
-        return platform.machine().lower().contains("arm")
+        return "arm" in platform.machine().lower()
 
     def get_running_python_version(self) -> str:
         """
@@ -334,16 +335,18 @@ class ComfyUtils(commands.Cog):
             str: The version of ComfyUI in the system, obtained by reading the `comfyui_version.py` file at the root of the ComfyUI installation.
         """
         try:
+            # Try to get the path from config if available
+            comfyui_path = getattr(self, '_comfyui_path', None)
+            if not comfyui_path:
+                return "Unknown"
+
             comfyui_version_file = os.path.join(
-                str(
-                    self.bot.get_cog("ComfyUI").config.comfyui_instance_path
-                ).removesuffix(pathsep),
-                pathsep,
+                str(comfyui_path).removesuffix(pathsep),
                 "comfyui_version.py",
             )
             with open(comfyui_version_file, "r", encoding="utf-8") as file:
                 return file.read().strip()
-        except (FileNotFoundError, OSError):
+        except (FileNotFoundError, OSError, AttributeError):
             return "Unknown"
 
     def get_comfyui_path(self) -> str:
@@ -353,7 +356,16 @@ class ComfyUtils(commands.Cog):
         Returns:
             str: The path of ComfyUI in the system.
         """
-        return self.bot.get_cog("ComfyUI").config.comfyui_instance_path
+        return getattr(self, '_comfyui_path', "Unknown")
+
+    def set_comfyui_path(self, path: str):
+        """
+        Set the path of ComfyUI in the system.
+
+        Args:
+            path (str): The path to set
+        """
+        self._comfyui_path = path
 
     def terminate_comfyui_server(self, timeout: int = 15) -> bool:
         """
@@ -363,20 +375,34 @@ class ComfyUtils(commands.Cog):
             bool: True if the ComfyUI server was terminated successfully, False otherwise
         """
         try:
-            comfyui_server_process = psutil.Process(
-                self.bot.get_cog("ComfyUI").config.comfyui_instance_path
-                + pathsep
-                + "server.py"
-            )
-            comfyui_server_process.terminate()
-            comfyui_server_process.wait(timeout=timeout)
-            self.bot.log.info("ComfyUI server terminated successfully.")
-            return True
-        except (
-            psutil.NoSuchProcess,
-            psutil.AccessDenied,
-            psutil.ZombieProcess,
-            psutil.TimeoutExpired,
-        ) as e:
-            self.bot.log.error(f"Failed to terminate ComfyUI server.\nError: {e}")
+            comfyui_path = getattr(self, '_comfyui_path', None)
+            if not comfyui_path:
+                self.bot.log.error(
+                    "ComfyUI path not set. Cannot terminate server.")
+                return False
+
+            server_script = os.path.join(comfyui_path, "server.py")
+            if not os.path.exists(server_script):
+                self.bot.log.error(
+                    f"Server script not found at {server_script}")
+                return False
+
+            # Find processes by name instead of trying to create a process object
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    if proc.info['name'] == 'python' and server_script in ' '.join(proc.info['cmdline'] or []):
+                        proc.terminate()
+                        proc.wait(timeout=timeout)
+                        self.bot.log.info(
+                            "ComfyUI server terminated successfully.")
+                        return True
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, psutil.TimeoutExpired):
+                    continue
+
+            self.bot.log.warning(
+                "No ComfyUI server process found to terminate.")
+            return False
+        except Exception as e:
+            self.bot.log.error(
+                f"Failed to terminate ComfyUI server.\nError: {e}")
             return False

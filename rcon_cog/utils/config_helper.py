@@ -5,7 +5,8 @@ Helper functions for the RCON cog.
 """
 
 import asyncio
-from discord import File, Member
+from os import getenv
+
 from redbot.core import Config, commands
 from redbot.core.bot import Red
 
@@ -17,16 +18,17 @@ class ConfigHelper(commands.Cog):
 
     def __init__(self, bot: Red):
         self.bot = bot
+        self.COG_ID = int(getenv("RCON_COG_ID"))
         self.config: Config = Config.get_conf(
-            self, identifier=837483292738, force_registration=True)
+            self, identifier=self.COG_ID, force_registration=True)
         self.config.register_guild(servers={})
         self.bot.loop.create_task(self.update_server_list())
 
     async def update_server_list(self):
         """Update the server list every 15 minutes."""
         while True:
-            await self.config.wait_until_guild_exists(837483292738)
+            await self.config.wait_until_guild_exists(self.config.id)
             servers = {g.id: g for g in self.bot.guilds}
             if not any([servers[server].owner_id == server_info["owner"] for server, server_info in self.config.all().items()]):
-                await self.delete_old_rcon
+                pass
             await asyncio.sleep(900)

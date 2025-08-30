@@ -25,7 +25,10 @@ class MSSUtilsNetwork(commands.Cog):
         Returns:
             str: The local IP address of the machine.
         """
-        return socket.gethostbyname(socket.gethostname())
+        try:
+            return socket.gethostbyname(socket.gethostname())
+        except socket.gaierror:
+            return "127.0.0.1"
 
     async def get_ip_address_by_hostname(self, hostname: str = None) -> str:
         """
@@ -37,7 +40,13 @@ class MSSUtilsNetwork(commands.Cog):
         Returns:
             str: The IP address of the hostname.
         """
-        return socket.gethostbyname(hostname)
+        if not hostname:
+            return "127.0.0.1"
+
+        try:
+            return socket.gethostbyname(hostname)
+        except socket.gaierror:
+            return "Unknown"
 
     async def get_hostname_by_ip_address(self, ip_address: str = None) -> str:
         """
@@ -49,19 +58,13 @@ class MSSUtilsNetwork(commands.Cog):
         Returns:
             str: The hostname of the IP address.
         """
-        return socket.gethostbyaddr(ip_address)
+        if not ip_address:
+            return "localhost"
 
-    async def get_ip_address_by_hostname(self, hostname: str = None) -> str:
-        """
-        Get the IP address of a hostname.
-
-        Args:
-            hostname (str, optional): The hostname to get the IP address of. Defaults to None.
-
-        Returns:
-            str: The IP address of the hostname.
-        """
-        return socket.gethostbyname(hostname)
+        try:
+            return socket.gethostbyaddr(ip_address)[0]
+        except socket.herror:
+            return "Unknown"
 
     async def get_open_ports(self) -> list:
         """
@@ -70,7 +73,10 @@ class MSSUtilsNetwork(commands.Cog):
         Returns:
             list: A list of open ports.
         """
-        return socket.getaddrinfo(socket.gethostname(), 0, socket.AF_UNSPEC, socket.SOCK_STREAM, 0, socket.AI_PASSIVE)
+        try:
+            return socket.getaddrinfo(socket.gethostname(), 0, socket.AF_UNSPEC, socket.SOCK_STREAM, 0, socket.AI_PASSIVE)
+        except socket.gaierror:
+            return []
 
     async def get_open_ports_by_ip_address(self, ip_address: str = None) -> list:
         """
@@ -82,7 +88,13 @@ class MSSUtilsNetwork(commands.Cog):
         Returns:
             list: A list of open ports.
         """
-        return socket.getaddrinfo(ip_address, 0, socket.AF_UNSPEC, socket.SOCK_STREAM, 0, socket.AI_PASSIVE)
+        if not ip_address:
+            return []
+
+        try:
+            return socket.getaddrinfo(ip_address, 0, socket.AF_UNSPEC, socket.SOCK_STREAM, 0, socket.AI_PASSIVE)
+        except socket.gaierror:
+            return []
 
     async def get_public_ip_address(self) -> str:
         """
@@ -128,7 +140,7 @@ class MSSUtilsNetwork(commands.Cog):
             return [server[4][0] for server in dns_servers]
         except socket.gaierror as e:
             self.logger.error(f"Error getting system DNS servers: {e}")
-            return None
+            return []
 
     async def get_system_name(self) -> str:
         """
@@ -137,7 +149,10 @@ class MSSUtilsNetwork(commands.Cog):
         Returns:
             str: The system name.
         """
-        return socket.gethostname()
+        try:
+            return socket.gethostname()
+        except socket.gaierror:
+            return "localhost"
 
     async def get_system_domain(self) -> str:
         """
@@ -146,7 +161,10 @@ class MSSUtilsNetwork(commands.Cog):
         Returns:
             str: The system domain.
         """
-        return socket.getfqdn()
+        try:
+            return socket.getfqdn()
+        except socket.gaierror:
+            return "localhost"
 
     async def get_system_fqdn(self) -> str:
         """

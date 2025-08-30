@@ -31,6 +31,9 @@ class MSSUtilsFS(commands.Cog):
         Returns:
             dict: The properties of the file.
         """
+        if not file_path:
+            return {}
+
         try:
             return {
                 "size": os.path.getsize(file_path),
@@ -55,7 +58,7 @@ class MSSUtilsFS(commands.Cog):
             }
         except (OSError, FileNotFoundError, PermissionError) as e:
             self.logger.error(f"Error getting file properties: {e}")
-            return None
+            return {}
 
     async def create_directory(self, directory_path: str = None) -> bool:
         """

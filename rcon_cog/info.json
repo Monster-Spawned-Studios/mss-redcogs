@@ -13,8 +13,7 @@
     "game server utilities"
   ],
   "requirements": [
-    "rcon",
-    "loguru"
+    "rcon"
   ],
   "hidden": false,
   "min_python_version": [

@@ -14,7 +14,8 @@
   "requirements": [
     "psutil",
     "ffmpeg",
-    "yt-dlp"
+    "yt-dlp",
+    "dotenv"
   ],
   "hidden": true,
   "min_python_version": [

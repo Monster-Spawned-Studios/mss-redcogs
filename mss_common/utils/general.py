@@ -102,13 +102,29 @@ class MSSUtilsGeneral(commands.Cog):
         """
         Convert a string to snake_case.
         """
-        return string.lower().replace(" ", "_").replace("-", "_").replace(".", "_").replace(":", "_").replace(";", "_").replace(",", "_").replace("!", "_").replace("?", "_").replace("'", "_").replace("\"", "_").replace("`", "_").replace("~", "_").replace("|", "_").replace("\\", "_").replace("/", "_").replace("*", "_").replace("&", "_").replace("^", "_").replace("%", "_").replace("$", "_").replace("#", "_").replace("@", "_").replace("!", "_").replace("?", "_").replace("'", "_").replace("\"", "_").replace("`", "_").replace("~", "_").replace("|", "_").replace("\\", "_").replace("/", "_").replace("*", "_").replace("&", "_").replace("^", "_").replace("%", "_").replace("$", "_").replace("#", "_").replace("@", "_").replace("!", "_").replace("?", "_").replace("'", "_").replace("\"", "_").replace("`", "_").replace("~", "_").replace("|", "_").replace("\\", "_").replace("/", "_").replace("*", "_").replace("&", "_").replace("^", "_").replace("%", "_").replace("$", "_").replace("#", "_").replace("@", "_")
+        import re
+
+        # Convert to lowercase and replace special characters with underscores
+        result = re.sub(r'[^a-zA-Z0-9]', '_', string.lower())
+        # Remove multiple consecutive underscores
+        result = re.sub(r'_+', '_', result)
+        # Remove leading and trailing underscores
+        return result.strip('_')
 
     def convert_to_camel_case(self, string: str) -> str:
         """
         Convert a string to camelCase.
         """
-        return string.lower().replace(" ", "").replace("-", "").replace(".", "").replace(":", "").replace(";", "").replace(",", "").replace("!", "").replace("?", "").replace("'", "").replace("\"", "").replace("`", "").replace("~", "").replace("|", "").replace("\\", "").replace("/", "").replace("*", "").replace("&", "").replace("^", "").replace("%", "").replace("$", "").replace("#", "").replace("@", "").replace("!", "").replace("?", "").replace("'", "").replace("\"", "").replace("`", "").replace("~", "").replace("|", "").replace("\\", "").replace("/", "").replace("*", "").replace("&", "").replace("^", "").replace("%", "").replace("$", "").replace("#", "").replace("@", "")
+        import re
+
+        # Remove special characters and convert to lowercase
+        result = re.sub(r'[^a-zA-Z0-9\s]', '', string.lower())
+        # Split by spaces and capitalize each word except the first
+        words = result.split()
+        if not words:
+            return ""
+        result = words[0] + ''.join(word.capitalize() for word in words[1:])
+        return result
 
     def get_discord_user_id(self, user: Member) -> str:
         """

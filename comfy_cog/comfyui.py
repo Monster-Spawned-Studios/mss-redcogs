@@ -338,7 +338,13 @@ class ComfyUI(commands.Cog):
     )
     async def set_address(self, ctx: commands.Context, address: str):
         """Sets the address of the ComfyUI server."""
-        self.config.extra_launch_arguments.add(f"--address {address}")
+        # Store extra launch arguments as a string
+        current_args = await self.config.extra_launch_arguments()
+        if current_args:
+            new_args = current_args + f" --address {address}"
+        else:
+            new_args = f"--address {address}"
+        await self.config.extra_launch_arguments.set(new_args)
         await self.config.address.set(address)
         await ctx.send(f"ComfyUI address set to: `{address}`")
 

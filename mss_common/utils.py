@@ -3,12 +3,13 @@ Copyright (c) 2025 Monster Spawned Studios | https://monsterspawned.studio | All
 """
 
 import asyncio
+from asyncio import QueueEmpty
 from typing import Any, Callable
 
 from redbot.core import commands
 from redbot.core.bot import Red
 
-from mss_common.utils.general import MSSUtilsGeneral
+from .utils.general import MSSUtilsGeneral
 
 
 class MSSUtils(commands.Cog):

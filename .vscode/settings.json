@@ -19,7 +19,7 @@
   // Enable word-based suggestions
   "editor.wordBasedSuggestions": "matchingDocuments",
   // Disable the Python language server
-  "python.languageServer": "None",
+  "python.languageServer": "Jedi",
   // Set the default formatter to Black
-  "editor.defaultFormatter": "black-formatter.black-formatter",
+  "editor.defaultFormatter": "anysphere.cursorpyright"
 }

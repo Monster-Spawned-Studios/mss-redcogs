@@ -8,7 +8,6 @@ import subprocess
 from redbot.core import commands
 from redbot.core.bot import Red
 from yt_dlp import YoutubeDL
-from yt_dlp.postprocessor import ffmpeg
 from yt_dlp.utils import DownloadError
 
 
@@ -24,42 +23,20 @@ class MSSUtilsMedia(commands.Cog):
         self.bot = bot
         self.logger = getattr(self.bot, "log", None)
         self.embed_subtitles = False
-        # Set the default subtitles language to English, and default it to `en` if not provided
-        self.subtitles_language = ""
-        if self.subtitles_language not in ["en", "en-US", "de", "de-DE", "fr", "fr-FR", "es", "es-ES", "it", "it-IT", "ja", "ja-JP", "ko", "ko-KR", "pt", "pt-PT", "ru", "ru-RU", "zh", "zh-CN", "zh-TW"]:
-            self.logger.warning(
-                f"Invalid subtitles language provided: {self.subtitles_language}. Defaulting to English.")
-            self.subtitles_language = "en"
-        # Set the default audio region to United States, and default it to `US` if not provided
-        self.audio_region = ""
-        if self.audio_region not in ["US", "CA", "GB", "AU", "NZ", "IE", "ZA", "IN", "CN", "JP", "KR", "TW", "HK", "SG", "MY", "PH", "TH", "VN", "ID"]:
-            self.logger.warning(
-                f"Invalid audio region provided: {self.audio_region}. Defaulting to United States.")
-            self.audio_region = "US"
-        # Set the default download format to the best available format, and default it to `mp4` if not provided
+        # Set the default subtitles language to English
+        self.subtitles_language = "en"
+        # Set the default audio region to United States
+        self.audio_region = "US"
+        # Set the default download format to mp4
         self.download_format = "mp4"
-        if self.download_format not in ["mp4", "webm", "flac", "m4a", "opus", "aac", "ogg", "wav", "mp3"]:
-            self.logger.warning(
-                f"Invalid download format provided: {self.download_format}. Defaulting to mp4.")
-            self.download_format = "mp4"
-        # Set the default download quality to the best available quality, and default it to `best` if not provided
+        # Set the default download quality to the best available quality
         self.video_download_quality = "best"
-        if self.video_download_quality not in ["best", "worst", "144p", "240p", "360p", "480p", "720p", "1080p", "1440p", "2160p", "4320p"]:
-            self.logger.warning(
-                f"Invalid video download quality provided: {self.video_download_quality}. Defaulting to best.")
-            self.video_download_quality = "best"
-        # Set the default audio download format to the best available format, and default it to `flac` if not provided
-        self.audio_download_format = ""
-        if self.audio_download_format not in ["flac", "m4a", "opus", "aac", "ogg", "wav", "mp3"]:
-            self.logger.warning(
-                f"Invalid audio download format provided: {self.audio_download_format}. Defaulting to flac.")
-            self.audio_download_format = "flac"
-        # Set the default audio download quality to the best available quality, and default it to `best` if not provided
-        self.audio_download_quality = ""
-        if self.audio_download_quality not in ["best", "worst", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]:
-            self.logger.warning(
-                f"Invalid audio download quality provided: {self.audio_download_quality}. Defaulting to best.")
-            self.audio_download_quality = "best"
+        # Set the default audio download format to flac
+        self.audio_download_format = "flac"
+        # Set the default audio download quality to the best available quality
+        self.audio_download_quality = "best"
+
+        # Convert quality strings to numeric values
         if self.audio_download_quality == "best":
             self.audio_download_quality = 0
         elif self.audio_download_quality == "worst":

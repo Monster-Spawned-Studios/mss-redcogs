@@ -29,10 +29,13 @@ class MSSUtilsProc(commands.Cog):
         Returns:
             dict: The information about the process.
         """
+        if not process_id:
+            return {}
+
         try:
-            return psutil.Process(process_id).info
+            return psutil.Process(process_id).as_dict(attrs=['pid', 'name', 'status', 'create_time', 'cpu_percent', 'memory_percent'])
         except psutil.NoSuchProcess:
-            return None
+            return {}
 
     async def get_process_list(self) -> list:
         """
@@ -41,7 +44,10 @@ class MSSUtilsProc(commands.Cog):
         Returns:
             list: A list of all processes.
         """
-        return [psutil.Process(process.pid).info for process in psutil.Process().children()]
+        try:
+            return [psutil.Process(process.pid).as_dict(attrs=['pid', 'name', 'status']) for process in psutil.Process().children()]
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            return []
 
     async def get_process_list_by_name(self, process_name: str = None, recursive: bool = True) -> list:
         """
@@ -53,7 +59,13 @@ class MSSUtilsProc(commands.Cog):
         Returns:
             list: A list of all processes by name.
         """
-        return [psutil.Process(process.pid).info for process in psutil.Process().children() if process.name() == process_name]
+        if not process_name:
+            return []
+
+        try:
+            return [psutil.Process(process.pid).as_dict(attrs=['pid', 'name', 'status']) for process in psutil.Process().children() if process.name() == process_name]
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            return []
 
     async def get_process_list_by_pid(self, process_pid: int = None, recursive: bool = True) -> list:
         """
@@ -66,7 +78,13 @@ class MSSUtilsProc(commands.Cog):
         Returns:
             list: A list of all processes by PID.
         """
-        return [psutil.Process(process.pid).info for process in psutil.Process().children() if process.pid == process_pid]
+        if not process_pid:
+            return []
+
+        try:
+            return [psutil.Process(process.pid).as_dict(attrs=['pid', 'name', 'status']) for process in psutil.Process().children() if process.pid == process_pid]
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            return []
 
     async def get_process_list_by_name_and_pid(self, process_name: str = None, process_pid: int = None, recursive: bool = True) -> list:
         """
@@ -80,7 +98,13 @@ class MSSUtilsProc(commands.Cog):
         Returns:
             list: A list of all processes by name and PID.
         """
-        return [psutil.Process(process.pid).info for process in psutil.Process().children() if process.name() == process_name and process.pid == process_pid]
+        if not process_name or not process_pid:
+            return []
+
+        try:
+            return [psutil.Process(process.pid).as_dict(attrs=['pid', 'name', 'status']) for process in psutil.Process().children() if process.name() == process_name and process.pid == process_pid]
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            return []
 
     async def get_process_owner(self, process_id: int = None) -> str:
         """
@@ -92,7 +116,13 @@ class MSSUtilsProc(commands.Cog):
         Returns:
             str: The owner of the process.
         """
-        return psutil.Process(process_id).username()
+        if not process_id:
+            return "Unknown"
+
+        try:
+            return psutil.Process(process_id).username()
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            return "Unknown"
 
     async def terminate_process(self, process_id: int = None) -> bool:
         """
