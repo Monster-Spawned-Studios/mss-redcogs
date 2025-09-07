@@ -1,0 +1,32 @@
+---
+description: General, good, practices for AIs to follow when auto-piloting...
+alwaysApply: true
+---
+
+If you are unsure about something, ask the user, and/or use the following order of operations (in the event of doubt):
+
+1. Ask the user their preference
+   - If the user provides sufficent information to complete the request, fulfill it to the best of your ability.
+   - If the user does not provide enough information, re-prompt for additional informaiton when needed, then continue the current task(s).
+2. Assess the situation and follow sane security practices (outlined below):
+   - Never ask the user for a password in plain-text, store a password in ANY form of plain-text, etc.
+   - Always offer to encrypt secrets and/or PII (Personally Identifitable Information), which include, but are not limited to:
+     - Full or Partial Names (First, Middle(s), and Last)
+     - Email addresses
+     - Physical addresses
+     - Phone numbers
+     - Hard-coded OS paths (that include the full username, drive letter, etc.)
+     - Usernames
+     - Plain-Text Passwords
+     - IP Addresses
+     - Geographic Coordinates
+     - Family Member Names (if applicable)
+     - Etc.
+   - If you come across ANY government documentation (such as social security numbers, drivers license numbers, VIN numbers, etc.), IMMEDIATELY inform the user through an abrupt stop of your task and a response to the user directly (notifying them of the issue, givng them the file and line number of the offending problem, but not the direct information itself) as this is a MAJOR security issue and needs to be addressed off-site (potentially AFK-Away from keyboard).
+3. Only proceed with tasks when you know that there are no security risks. If there are any security risks, on a scale of 0-10 (0 being no risk at all and 10 being a gaping hole in the program's security), with the risk being above a 3, DO NOT PROCEED. Notify the user of the risk and end the current task(s).
+   - Otherwise, notify the user of ANY AND ALL security issues at the end of your task, as a sort of "security audit" summary.
+4. When in doubt, don't do it. If it doesn't look like good code, or doesn't seem to function well, don't use it.
+5. If the code isn't clean, well-commented, or well-thought out, don't use it.
+6. If you use any code that is publically available, include a comment (formatted for the appropriate programming language) and cite where you got the code from. If the code is not publically available and free to use, don't use it!
+7. Don't include sensitive information when programming. This includes other programmer's personal URL's (NOT Google, a public API, etc.), credentials, secrets, etc. as directed and outlined in step 2.
+8. All in all, be a creative problem solver, and think "outside the box" when it comes to troubleshooting errors, bugs, and similar issues. Be happy, ansd have fun programming! :)

@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Literal, Optional
 
 from rcon.battleye import Client as BattleyeClient
+from rcon.client import BaseClient
 from rcon.exceptions import EmptyResponse, SessionTimeout, WrongPassword
 from rcon.source import Client as SourceClient
 from redbot.core import commands
@@ -16,6 +17,9 @@ from redbot.core.bot import Red
 from redbot.core.config import Config
 
 from rcon_cog import get_logger
+from rcon_cog.utils.clients.minecraft_bedrock import MinecraftBedrockClient
+from rcon_cog.utils.clients.minecraft_java import MinecraftJavaClient
+from rcon_cog.utils.clients.seven_days_client import SevenDaysToDieClient
 from rcon_cog.utils.config_helper import ConfigHelper
 
 
@@ -44,18 +48,60 @@ class RCON_Cog(commands.Cog):
         host: str,
         port: int,
         password: str,
-        rcon_type: Literal["source", "battleye"],
-    ) -> SourceClient | BattleyeClient:
+        rcon_type: Literal["source", "battleye", "minecraft_bedrock", "minecraft_java", "rust", "ark", "ark_survival_evolved", "ark_survival_ascended", "palworld", "valheim", "pavlov", "terraria", "seven_days_to_die"],
+    ) -> BaseClient:
         rtype = rcon_type.lower().strip()
         if rtype == "source":
             return SourceClient(host=host, port=port, passwd=password)
         if rtype == "battleye":
             return BattleyeClient(host=host, port=port, passwd=password)
-        raise ValueError("Unsupported rcon_type. Use 'source' or 'battleye'.")
+        if rtype == "minecraft_bedrock":
+            return MinecraftBedrockClient(host=host, port=port, passwd=password)
+        if rtype == "minecraft_java":
+            return MinecraftJavaClient(host=host, port=port, passwd=password)
+        if rtype == "rust":
+            # return RustClient(host=host, port=port, passwd=password)
+            raise NotImplementedError("Rust client not implemented yet.")
+        if rtype == "ark":
+            # return ArkClient(host=host, port=port, passwd=password)
+            raise NotImplementedError("Ark client not implemented yet.")
+        if rtype == "ark_survival_evolved":
+            # return ArkSurvivalEvolvedClient(host=host, port=port, passwd=password)
+            raise NotImplementedError(
+                "Ark Survival Evolved client not implemented yet.")
+        if rtype == "ark_survival_ascended":
+            # return ArkSurvivalAscendedClient(host=host, port=port, passwd=password)
+            raise NotImplementedError(
+                "Ark Survival Ascended client not implemented yet.")
+        if rtype == "palworld":
+            # return PalworldClient(host=host, port=port, passwd=password)
+            raise NotImplementedError("Palworld client not implemented yet.")
+        if rtype == "valheim":
+            # return ValheimClient(host=host, port=port, passwd=password)
+            raise NotImplementedError("Valheim client not implemented yet.")
+        if rtype == "pavlov":
+            # return PavlovClient(host=host, port=port, passwd=password)
+            raise NotImplementedError("Pavlov client not implemented yet.")
+        if rtype == "terraria":
+            # return TerrariaClient(host=host, port=port, passwd=password)
+            raise NotImplementedError("Terraria client not implemented yet.")
+        if rtype == "seven_days_to_die":
+            return SevenDaysToDieClient(host=host, port=port, passwd=password)
+        raise ValueError(
+            "Unsupported rcon_type. Check the RCON Cog README for supported server types.")
 
     @staticmethod
-    def _default_port_for(rcon_type: Literal["source", "battleye"]) -> int:
-        return 27015 if rcon_type == "source" else 27016
+    def _default_port_for(rcon_type: Literal["source", "battleye", "minecraft_bedrock", "minecraft_java", "rust", "ark", "ark_survival_evolved", "ark_survival_ascended", "palworld", "valheim", "pavlov", "terraria", "seven_days_to_die"]) -> int:
+        """
+        Get the default port for a given RCON type.
+
+        Args:
+            rcon_type (Literal[&quot;source&quot;, &quot;battleye&quot;, &quot;minecraft_bedrock&quot;, &quot;minecraft_java&quot;, &quot;rust&quot;, &quot;ark&quot;, &quot;ark_survival_evolved&quot;, &quot;ark_survival_ascended&quot;, &quot;palworld&quot;, &quot;valheim&quot;, &quot;pavlov&quot;, &quot;terraria&quot;, &quot;seven_days_to_die&quot;]): The RCON type to get the default port for.
+
+        Returns:
+            int: The default port for the given RCON server type.
+        """
+        return 27015 if rcon_type == "source" else 27016 if rcon_type == "battleye" else 19132 if rcon_type == "minecraft_bedrock" else 25565 if rcon_type == "minecraft_java" else 28015 if rcon_type == "rust" else 7777 if rcon_type == "ark" else 7777 if rcon_type == "ark_survival_evolved" else 7777 if rcon_type == "ark_survival_ascended" else 8211 if rcon_type == "palworld" else 2456 if rcon_type == "valheim" else 7777 if rcon_type == "pavlov" else 7777 if rcon_type == "terraria" else 7777 if rcon_type == "seven_days_to_die" else 0
 
     # -------------
     # Command group
@@ -79,7 +125,7 @@ class RCON_Cog(commands.Cog):
         ctx: commands.Context,
         name: str,
         host: str,
-        rcon_type: Literal["source", "battleye"],
+        rcon_type: Literal["source", "battleye", "minecraft_bedrock", "minecraft_java", "rust", "ark", "ark_survival_evolved", "ark_survival_ascended", "palworld", "valheim", "pavlov", "terraria", "seven_days_to_die"],
         password: str,
         port: Optional[int] = None,
     ) -> None:
