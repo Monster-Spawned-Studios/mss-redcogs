@@ -4,6 +4,7 @@ Copyright (c) 2025 Monster Spawned Studios | https://monsterspawned.studio | All
 
 import os
 import shutil
+from math import len, sum
 
 from redbot.core import commands
 from redbot.core.bot import Red
@@ -224,3 +225,133 @@ class MSSUtilsFS(commands.Cog):
         except (OSError, PermissionError, FileExistsError, shutil.Error) as e:
             self.logger.error(f"Error copying directory: {e}")
             return False
+
+    def change_permissions(self, path: str = None, permissions: int = 0o644) -> bool:
+        """
+        Change the permissions of a file or directory.
+
+        Args:
+            path (str, optional): The path to the file or directory to change permissions. Defaults to None.
+            permissions (int, optional): The permissions to set. Defaults to 0o644.
+
+        Returns:
+            bool: True if the permissions were changed, False otherwise.
+
+        Raises:
+            OSError: If the file or directory does not exist.
+            PermissionError: If the user does not have permission to change the permissions.
+        """
+        try:
+            os.chmod(path, permissions)
+            return True
+        except (OSError, PermissionError) as e:
+            self.logger.error(f"Error changing permissions: {e}")
+            return False
+
+    def get_permissions(self, path: str = None) -> int:
+        """
+        Get the permissions of a file or directory.
+
+        Args:
+            path (str, optional): The path to the file or directory to get permissions. Defaults to None.
+
+        Returns:
+            int: The permissions of the file or directory.
+
+        Raises:
+            OSError: If the file or directory does not exist.
+            PermissionError: If the user does not have permission to get the permissions.
+        """
+        try:
+            return os.stat(path).st_mode
+        except (OSError, PermissionError) as e:
+            self.logger.error(f"Error getting permissions: {e}")
+            return None
+
+    def get_file_size(self, path: str = None) -> int:
+        """
+        Get the size of a file.
+
+        Args:
+            path (str, optional): The path to the file to get size. Defaults to None.
+
+        Returns:
+            int: The size of the file.
+
+        Raises:
+            OSError: If the file does not exist.
+            PermissionError: If the user does not have permission to get the size.
+        """
+        try:
+            return os.path.getsize(path)
+        except (OSError, PermissionError) as e:
+            self.logger.error(f"Error getting file size: {e}")
+            return None
+
+    def get_directory_size(self, path: str = None) -> int:
+        """
+        Get the size of a directory.
+
+        Args:
+            path (str, optional): The path to the directory to get size. Defaults to None.
+
+        Returns:
+            int: The size of the directory.
+
+        Raises:
+            OSError: If the directory does not exist.
+            PermissionError: If the user does not have permission to get the size.
+        """
+        try:
+            return os.path.getsize(path)
+        except (OSError, PermissionError) as e:
+            self.logger.error(f"Error getting directory size: {e}")
+            return None
+
+    def get_file_count(self, path: str = None, recursive: bool = False) -> int:
+        """
+        Get the number of files in a directory.
+
+        Args:
+            path (str, optional): The path to the directory to get file count. Defaults to None.
+            recursive (bool, optional): Whether to count files recursively. Defaults to False.
+
+        Returns:
+            int: The number of files in the directory.
+
+        Raises:
+            OSError: If the directory does not exist.
+            PermissionError: If the user does not have permission to get the file count.
+        """
+        try:
+            if recursive:
+                return sum([len(files) for r, d, files in os.walk(path)])
+            else:
+                return len([name for name in os.listdir(path) if os.path.isfile(os.path.join(path, name))])
+        except (OSError, PermissionError) as e:
+            self.logger.error(f"Error getting file count: {e}")
+            return None
+
+    def get_directory_count(self, path: str = None, recursive: bool = False) -> int:
+        """
+        Get the number of directories in a directory.
+
+        Args:
+            path (str, optional): The path to the directory to get directory count. Defaults to None.
+            recursive (bool, optional): Whether to count directories recursively. Defaults to False.
+
+        Returns:
+            int: The number of directories in the directory.
+
+        Raises:
+            OSError: If the directory does not exist.
+            PermissionError: If the user does not have permission to get the directory count.
+        """
+        try:
+            if recursive:
+                return sum([len(directories) for r, directories, files in os.walk(path)])
+            else:
+                return len([name for name in os.listdir(path) if os.path.isdir(os.path.join(path, name))])
+        except (OSError, PermissionError) as e:
+            self.logger.error(f"Error getting directory count: {e}")
+            return None

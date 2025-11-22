@@ -32,6 +32,8 @@ class ComfyUIConfig(commands.Cog):
         )
 
         default_global = {
+            "comfy_host": "127.0.0.1",
+            "comfy_port": 8188,
             "address": "127.0.0.1:8188",
             "workflow_file": File(""),
             "models": {},
@@ -49,6 +51,7 @@ class ComfyUIConfig(commands.Cog):
             "admin_log_channel": 0,
             "extra_launch_arguments": "",
             "enable_experimental_features": False,
+            "encryption_key": None,
         }
         experimental_global = {
             "enable_instance_management": False,
@@ -60,6 +63,7 @@ class ComfyUIConfig(commands.Cog):
         }
 
         self.config.register_global(**default_global)
+        self.config.register_user(auth_token=None)
         if self.experimental_mode:
             # Log that experimental features are enabled
             self.bot.log.warning(

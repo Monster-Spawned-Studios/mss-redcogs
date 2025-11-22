@@ -12,7 +12,7 @@ import subprocess
 from datetime import datetime
 from os import getcwd, pathsep
 from os.path import exists
-from shutil import make_archive
+from shutil import make_archive, unpack_archive
 
 from redbot.core import commands
 from redbot.core.bot import Red
@@ -42,15 +42,17 @@ class ComfyManager(commands.Cog):
         self.instance_path = None
         self.overwrite_instance = None
 
-        # Create task to initialize config values
-        self.bot.loop.create_task(self._initialize_comfy_process())
+        # Create task to initialize config values and check dependencies
+        self.bot.loop.create_task(self._async_init())
+
+    async def _async_init(self):
+        """Initialize config values and check dependencies asynchronously."""
+        await self._initialize_comfy_process()
 
         try:
             # Check if the `comfy-cli` command is available and run it to verify it's working
-            subprocess.run(
-                ["comfy", "--version"], capture_output=True, text=True, check=False
-            )
-        except (FileNotFoundError, subprocess.CalledProcessError) as e:
+            await self._run_comfy_cmd(["--version"])
+        except Exception as e:
             # Log that the `comfy-cli` command failed to run
             self.bot.log.error(
                 "The `comfy` command is not installed. Please install the `comfy-cli` package before running any instance management related commands!"
@@ -59,13 +61,8 @@ class ComfyManager(commands.Cog):
 
         try:
             # Disable analytics from the comfy-cli package
-            subprocess.run(
-                ["comfy", "tracking", "disable"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-        except (FileNotFoundError, subprocess.CalledProcessError) as e:
+            await self._run_comfy_cmd(["tracking", "disable"])
+        except Exception as e:
             # Log that the `comfy-cli` failed to disable analytics
             self.bot.log.error(
                 "Something went wrong while disabling analytics from the `comfy-cli` package. Please try again manually by running `comfy tracking disable` in your RedBot virtual environment."
@@ -74,13 +71,8 @@ class ComfyManager(commands.Cog):
 
         try:
             # Disable the ComfyUI GUI:
-            subprocess.run(
-                ["comfy", "manager", "disable-gui"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-        except (FileNotFoundError, subprocess.CalledProcessError) as e:
+            await self._run_comfy_cmd(["manager", "disable-gui"])
+        except Exception as e:
             # Log that the `comfy-cli` failed to disable the ComfyUI GUI
             self.bot.log.error(
                 "Something went wrong while disabling the ComfyUI GUI. Please try again manually by running `comfy manager disable-gui` in your RedBot virtual environment."
@@ -93,12 +85,10 @@ class ComfyManager(commands.Cog):
             address = await self.config.address()
             if address and ":" in address:
                 host, port = address.split(":", 1)
-                self.comfy_process = subprocess.Popen(
-                    ["comfy", "launch", "--", "--host", host, "--port", port],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    check=False,
+                self.comfy_process = await asyncio.create_subprocess_exec(
+                    "comfy", "launch", "--", "--host", host, "--port", port,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
                 )
         except Exception:
             pass
@@ -179,8 +169,14 @@ class ComfyManager(commands.Cog):
         proc = await self._run_comfy_cmd(["stop"])
         # Wait 60 seconds before sending the command to stop the server forcefully:
         await asyncio.sleep(60)
-        proc = await self._run_system_cmd([""])
-        await ctx.send(proc)
+        if self.comfy_process:
+            try:
+                self.comfy_process.terminate()
+                await ctx.send("ComfyUI server process terminated forcefully.")
+            except Exception as e:
+                await ctx.send(f"Failed to terminate process: {e}")
+        else:
+            await ctx.send("ComfyUI server process handle not found.")
 
     @comfy_manager.command(name="delete", aliases=["remove", "uninstall"])
     @commands.is_owner()
@@ -204,7 +200,8 @@ class ComfyManager(commands.Cog):
 
         if confirm:
             await ctx.send("Deleting ComfyUI instance...")
-            proc = await self._run_comfy_cmd([""])
+            # Assuming 'uninstall' is the correct subcommand, if not, this might need adjustment
+            proc = await self._run_comfy_cmd(["uninstall"])
             await ctx.send(proc)
 
     @comfy_manager.command(name="set_default_instance")
@@ -231,15 +228,21 @@ class ComfyManager(commands.Cog):
         """Helper to run comfy command on host."""
         cmd = ["comfy"] + args
         try:
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, check=False)
-            return (
-                f"Output: {result.stdout}\nErrors: {result.stderr}"
-                if result.returncode == 0
-                else f"Failed: {result.stderr}"
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
             )
-        except subprocess.CalledProcessError as e:
-            return f"Subprocess error: {e}"
+            stdout, stderr = await process.communicate()
+
+            stdout_str = stdout.decode().strip()
+            stderr_str = stderr.decode().strip()
+
+            return (
+                f"Output: {stdout_str}\nErrors: {stderr_str}"
+                if process.returncode == 0
+                else f"Failed: {stderr_str}"
+            )
         except FileNotFoundError as e:
             return f"Command not found: {e}"
         except OSError as e:
@@ -249,17 +252,23 @@ class ComfyManager(commands.Cog):
 
     async def _run_system_cmd(self, cmd: str, args: list[str] = []):
         """Helper to run system command."""
-        cmd = [cmd] + args
+        command = [cmd] + args
         try:
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, check=False)
-            return (
-                f"Output: {result.stdout}\nErrors: {result.stderr}"
-                if result.returncode == 0
-                else f"Failed: {result.stderr}"
+            process = await asyncio.create_subprocess_exec(
+                *command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
             )
-        except subprocess.CalledProcessError as e:
-            return f"Subprocess error: {e}"
+            stdout, stderr = await process.communicate()
+
+            stdout_str = stdout.decode().strip()
+            stderr_str = stderr.decode().strip()
+
+            return (
+                f"Output: {stdout_str}\nErrors: {stderr_str}"
+                if process.returncode == 0
+                else f"Failed: {stderr_str}"
+            )
         except FileNotFoundError as e:
             return f"Command not found: {e}"
         except OSError as e:
@@ -267,22 +276,39 @@ class ComfyManager(commands.Cog):
         except ValueError as e:
             return f"Value error: {e}"
 
-    async def _backup_comfyui_instance(self, instance_path: str, file_name: str = f"comfyui_backup_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.zip") -> bool:
+    async def _backup_comfyui_instance(self, instance_path: str, file_name: str = None) -> bool:
         """Backup the ComfyUI instance."""
+        if file_name is None:
+            file_name = f"comfyui_backup_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+
         try:
             await self.bot.log.info(f"Backing up ComfyUI instance at '{instance_path}'...")
-            make_archive(file_name, "zip", instance_path)
-            await self.bot.log.info(f"ComfyUI instance backed up to '{file_name}'.")
+            await self.bot.loop.run_in_executor(
+                None,
+                make_archive,
+                file_name,
+                "zip",
+                instance_path
+            )
+            await self.bot.log.info(f"ComfyUI instance backed up to '{file_name}.zip'.")
+            return f"Backup created: {file_name}.zip"
         except (FileNotFoundError, OSError, ValueError) as e:
             await self.bot.log.error(f"Error backing up ComfyUI instance: {e}")
-            return False
+            return f"Backup failed: {e}"
 
-    async def _restore_comfyui_instance(self, instance_path: str, file_name: str = f"comfyui_backup_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.zip") -> bool:
+    async def _restore_comfyui_instance(self, instance_path: str, file_name: str) -> bool:
         """Restore the ComfyUI instance."""
         try:
             await self.bot.log.info(f"Restoring ComfyUI instance from '{file_name}'...")
-            make_archive(instance_path, "zip", instance_path)
+            await self.bot.loop.run_in_executor(
+                None,
+                unpack_archive,
+                file_name,
+                instance_path,
+                "zip"
+            )
             await self.bot.log.info(f"ComfyUI instance restored from '{file_name}'.")
+            return "Restore completed."
         except (FileNotFoundError, OSError, ValueError) as e:
             await self.bot.log.error(f"Error restoring ComfyUI instance: {e}")
-            return False
+            return f"Restore failed: {e}"

@@ -15,7 +15,8 @@
     "psutil",
     "ffmpeg",
     "yt-dlp",
-    "dotenv"
+    "dotenv",
+    "cryptography"
   ],
   "hidden": true,
   "min_python_version": [

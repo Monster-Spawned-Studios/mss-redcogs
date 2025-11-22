@@ -21,5 +21,54 @@
   // Disable the Python language server
   "python.languageServer": "None",
   // Set the default formatter to Black
-  "editor.defaultFormatter": "anysphere.cursorpyright"
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  // Add copyright information to the header of each file
+  "files.insertFinalNewline": true,
+  "turboFileHeader.autoInsertOnCreateFile": true,
+  "turboFileHeader.autoUpdateOnSave": false,
+  "turboFileHeader.companyName": "Monster Spawned Studios",
+  "turboFileHeader.userName": "Monster Spawned Studios",
+  "turboFileHeader.fileheader": [
+    {
+      "key": "filePath",
+      "label": " * @file",
+      "value": "{{filePath}}",
+      "defaultValue": ""
+    },
+    {
+      "key": "description",
+      "label": " * @description",
+      "value": "{{description}}",
+      "defaultValue": ""
+    },
+    {
+      "key": "authorName",
+      "label": " * @author",
+      "value": "{{authorName}} <{{authorEmail}}>",
+      "usePrevious": true,
+      "defaultValue": "Monster Spawned Studios <site-admin@monsterspawned.studio>"
+    },
+    {
+      "key": "birthtime",
+      "label": " * @createTime",
+      "value": "{{birthtime}}",
+      "usePrevious": true
+    },
+    {
+      "key": "mtime",
+      "label": " * @lastModified",
+      "value": "{{mtime}}"
+    },
+    {
+      "key": "copyright",
+      "label": "@copyright",
+      "value": "Copyright © {{birthtime}} Monster Spawned Studios | https://monsterspawned.studio | All Rights Reserved.",
+      "wholeLine": true,
+      "defaultValue": "Copyright © {{birthtime}} Monster Spawned Studios | https://monsterspawned.studio | All Rights Reserved."
+    }
+  ],
+  "turboFileHeader.dateFormat": "MM-DD-YYYY HH:mm:ss",
+  "turboFileHeader.userEmail": "site-admin@monsterspawned.studio",
+  "editor.formatOnPaste": true,
+  "prettier.useEditorConfig": true
 }

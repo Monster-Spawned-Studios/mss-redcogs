@@ -25,7 +25,7 @@ try:
     with open(info_file, "r", encoding="utf-8") as file:
         info_data = json.load(file)
         __version__ = info_data.get("version", "0.0.1")
-        __author__ = info_data.get("author", ["Unknown"])[
+        __author__ = info_data.get("author", ["Monster Spawned Studios"])[
             0].split("|")[0].strip()
 except (FileNotFoundError, json.JSONDecodeError, KeyError, IndexError):
     __version__ = "0.0.1"

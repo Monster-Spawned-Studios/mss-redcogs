@@ -23,6 +23,7 @@ from redbot.core.bot import Red
 from comfy_cog import __author__, __version__
 from comfy_cog.comfy_manager import ComfyManager
 from comfy_cog.config import ComfyUIConfig
+from mss_common.utils.security import decrypt_string, encrypt_string, generate_key
 
 
 class ComfyUI(commands.Cog):
@@ -72,7 +73,186 @@ class ComfyUI(commands.Cog):
         The actual processing logic for the queue.
         """
         await ctx.send(f"⚙️ Now generating an image for **{ctx.author.display_name}** with the prompt: `{prompt}`, using the model: `{model}`")
-        await self.generate(ctx, model, prompt)
+
+        address = await self.config.address()
+        workflow_file = await self.config.workflow_file()
+        if not address or not workflow_file:
+            await ctx.send(
+                "The ComfyUI address and workflow file must be set by the bot owner."
+            )
+            return
+
+        try:
+            with open(workflow_file, "r", encoding="utf-8") as f:
+                workflow = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            await ctx.send("The workflow file is not found or is invalid.")
+            return
+
+        models = await self.config.models()
+        if model.lower() not in models:
+            await ctx.send(
+                f"Model `{model}` not found. Available models: {', '.join(models.keys())}"
+            )
+            return
+
+        loras = await self.config.loras()
+        lora_weights = await self.config.lora_weights()
+        lora_weight_locked = await self.config.lora_weight_locked()
+        embeddings = await self.config.embeddings()
+        lycoris = await self.config.lycoris()
+        lycoris_weights = await self.config.lycoris_weights()
+        lycoris_weight_locked = await self.config.lycoris_weight_locked()
+
+        workflow, lora_parts, lycoris_parts, embedding_parts = self._modify_workflow(
+            workflow,
+            model,
+            prompt,
+            models,
+            loras,
+            lora_weights,
+            lora_weight_locked,
+            embeddings,
+            lycoris,
+            lycoris_weights,
+            lycoris_weight_locked,
+        )
+
+        if lora_parts and lora_parts[0].split(":")[1].lower() not in loras:
+            await ctx.send("Could not find a LoraLoader node in the workflow.")
+        if lycoris_parts and lycoris_parts[0].split(":")[1].lower() not in lycoris:
+            await ctx.send("Could not find a LyCORIS model in the available options.")
+
+        # Retrieve and decrypt auth token
+        auth_token = None
+        encrypted_token = await self.config.user(ctx.author).auth_token()
+        if encrypted_token:
+            key = await self.config.encryption_key()
+            if key:
+                auth_token = decrypt_string(encrypted_token, key)
+
+        client_id = str(uuid.uuid4())
+        queued_prompt = await self.queue_prompt(workflow, client_id, auth_token)
+        if not queued_prompt:
+            await ctx.send("Failed to queue the prompt.")
+            return
+
+        prompt_id = queued_prompt["prompt_id"]
+
+        # Websocket connection to get the result
+        ws_url = f"ws://{address}/ws?clientId={client_id}"
+        headers = {}
+        if auth_token:
+            headers["Authorization"] = f"Bearer {auth_token}"
+
+        try:
+            async with aiohttp.ClientSession().ws_connect(ws_url, headers=headers) as ws:
+                async for msg in ws:
+                    if msg.type == aiohttp.WSMsgType.TEXT:
+                        message = json.loads(msg.data)
+                        if (
+                            message["type"] == "executing"
+                            and message["data"]["node"] is None
+                            and message["data"]["prompt_id"] == prompt_id
+                        ):
+                            break  # Execution is done
+        except (
+            aiohttp.ClientError,
+            aiohttp.WSServerHandshakeError,
+            json.JSONDecodeError,
+            KeyError,
+        ) as e:
+            await ctx.send(f"An error occurred during image generation: {e}")
+            return
+
+        history = await self.get_history(prompt_id, auth_token)
+        if not history:
+            await ctx.send("Could not retrieve generation history.")
+            return
+
+        history_entry = history.get(prompt_id)
+        if not history_entry or "outputs" not in history_entry:
+            await ctx.send("Generation failed or produced no output.")
+            return
+
+        for _, node_output in history_entry["outputs"].items():
+            if "images" in node_output:
+                for image_data in node_output["images"]:
+                    image_bytes = await self.get_image(
+                        image_data["filename"],
+                        image_data["subfolder"],
+                        image_data["type"],
+                        auth_token
+                    )
+                    if image_bytes:
+                        # NSFW Check
+                        nsfw_threshold = await self.config.nsfw_threshold()
+                        # Run NSFW check in executor
+                        is_nsfw = await self.bot.loop.run_in_executor(
+                            None,
+                            self.nsfw_detector.is_nsfw,
+                            io.BytesIO(image_bytes),
+                            nsfw_threshold
+                        )
+
+                        if is_nsfw:
+                            # NSFW Notification
+                            notification_users = (
+                                await self.config.nsfw_notification_users()
+                            )
+                            notification_channel_id = (
+                                await self.config.nsfw_notification_channel()
+                            )
+
+                            if notification_users and notification_channel_id:
+                                notification_channel = ctx.guild.get_channel(
+                                    notification_channel_id
+                                )
+                                if notification_channel:
+                                    user_mentions = " ".join(
+                                        [
+                                            f"<@{user_id}>"
+                                            for user_id in notification_users
+                                        ]
+                                    )
+                                    embed = discord.Embed(
+                                        title="🚨 NSFW Content Detected",
+                                        description=f"**User:** {ctx.author.mention} ({ctx.author.name}#{ctx.author.discriminator})\n"
+                                        f"**Channel:** {ctx.channel.mention}\n"
+                                        f"**Model:** {model}\n"
+                                        f"**Prompt:** {prompt}\n"
+                                        f"**Threshold:** {nsfw_threshold}",
+                                        color=discord.Color.red(),
+                                        timestamp=ctx.message.created_at,
+                                    )
+                                    embed.set_footer(
+                                        text=f"User ID: {ctx.author.id}")
+                                    await notification_channel.send(
+                                        content=user_mentions, embed=embed
+                                    )
+
+                            await ctx.send(
+                                "The generated image was flagged as NSFW and has been deleted."
+                            )
+                            return
+
+                        # Watermarking
+                        # Run watermarking in executor
+                        watermarked_image = await self.bot.loop.run_in_executor(
+                            None,
+                            self.apply_watermark,
+                            image_bytes,
+                            ctx.author.display_name
+                        )
+
+                        file = discord.File(
+                            io.BytesIO(watermarked_image), filename="image.png"
+                        )
+                        await ctx.send(
+                            content=f"Here is your generated image, **{ctx.author.display_name}**!",
+                            file=file,
+                        )
+
         await ctx.send(f"✅ Generation finished for **{ctx.author.display_name}**!")
 
     async def get_image(self, filename, subfolder, folder_type):
@@ -90,20 +270,51 @@ class ComfyUI(commands.Cog):
         address = await self.config.address()
         if not address:
             return None
+
+        headers = {}
+        auth_token_enc = await self.config.user(self.bot.user).auth_token() # Using bot user as fallback/default context might be wrong, need context user
+        # Actually get_image is called from do_generation which has ctx, but get_image signature doesn't have ctx or user.
+        # I need to pass the user to get_image or store it.
+        # Let's update get_image signature to accept token or user.
+        # Wait, get_image is internal. I should pass the headers or token.
+        pass
+
+    async def get_image(self, filename, subfolder, folder_type, token=None):
+        """
+        Gets an image from the ComfyUI server.
+
+        Args:
+            filename (str): The filename of the image.
+            subfolder (str): The subfolder of the image.
+            folder_type (str): The type of folder the image is in.
+            token (str): The auth token (decrypted).
+
+        Returns:
+            bytes: The image data.
+        """
+        address = await self.config.address()
+        if not address:
+            return None
+
+        headers = {}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+
         url = f"http://{address}/view?filename={filename}&subfolder={subfolder}&type={folder_type}"
         async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
+            async with session.get(url, headers=headers) as response:
                 if response.status == 200:
                     return await response.read()
                 return None
 
-    async def queue_prompt(self, prompt, client_id):
+    async def queue_prompt(self, prompt, client_id, token=None):
         """
         Queues a prompt to the ComfyUI server.
 
         Args:
             prompt (str): The prompt to queue.
             client_id (str): The client ID to use for the prompt.
+            token (str): The auth token (decrypted).
 
         Returns:
             dict: The response from the ComfyUI server.
@@ -112,11 +323,16 @@ class ComfyUI(commands.Cog):
             address = await self.config.address()
             if not address:
                 return None
+
+            headers = {}
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+
             p = {"prompt": prompt, "client_id": client_id}
             data = json.dumps(p).encode("utf-8")
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    f"http://{address}/prompt", data=data
+                    f"http://{address}/prompt", data=data, headers=headers
                 ) as response:
                     if response.status == 200:
                         return await response.json()
@@ -125,12 +341,13 @@ class ComfyUI(commands.Cog):
             print(f"Error queuing prompt: {e}")
             return None
 
-    async def get_history(self, prompt_id):
+    async def get_history(self, prompt_id, token=None):
         """
         Gets the history of a prompt from the ComfyUI server.
 
         Args:
             prompt_id (str): The ID of the prompt to get the history of.
+            token (str): The auth token (decrypted).
 
         Returns:
             dict: The history of the prompt.
@@ -138,10 +355,15 @@ class ComfyUI(commands.Cog):
         address = await self.config.address()
         if not address:
             return None
+
+        headers = {}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    f"http://{address}/history/{prompt_id}"
+                    f"http://{address}/history/{prompt_id}", headers=headers
                 ) as response:
                     if response.status == 200:
                         return await response.json()
@@ -329,8 +551,40 @@ class ComfyUI(commands.Cog):
         """
         Configuration commands for the ComfyUI cog.
         """
+        # Ensure encryption key exists
+        if not await self.config.encryption_key():
+            key = generate_key()
+            await self.config.encryption_key.set(key)
+
         if ctx.interaction:
             await ctx.send("Please use the subcommands to configure ComfyUI settings.")
+
+    @comfy.command(name="add-token")
+    @app_commands.describe(token="The authentication token for the ComfyUI server")
+    async def add_token(self, ctx: commands.Context, token: str):
+        """
+        Adds an authentication token for the ComfyUI server.
+        The token is encrypted before storage.
+        """
+        # Delete the message to protect the token if possible
+        if ctx.guild and ctx.channel.permissions_for(ctx.guild.me).manage_messages:
+            try:
+                await ctx.message.delete()
+            except (discord.Forbidden, discord.NotFound):
+                pass
+
+        key = await self.config.encryption_key()
+        if not key:
+            key = generate_key()
+            await self.config.encryption_key.set(key)
+
+        encrypted_token = encrypt_string(token, key)
+        if not encrypted_token:
+            await ctx.send("Failed to encrypt token. Please check logs.")
+            return
+
+        await self.config.user(ctx.author).auth_token.set(encrypted_token)
+        await ctx.send(f"Authentication token stored securely for {ctx.author.mention}.", delete_after=10)
 
     @comfy.command(name="set-address")
     @app_commands.describe(
@@ -616,6 +870,201 @@ class ComfyUI(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.hybrid_command(name="generate")
+        await ctx.send(f"Default weight for LoRA `{lora_name}` set to `{weight}`.")
+
+    @comfy.command(name="add-embedding")
+    @app_commands.describe(
+        name="The display name for the embedding",
+        filename="The filename of the embedding file",
+    )
+    async def add_embedding(self, ctx: commands.Context, name: str, filename: str):
+        """Adds an embedding to the list of available embeddings."""
+        async with self.config.embeddings() as embeddings:
+            embeddings[name.lower()] = filename
+        await ctx.send(f"Embedding `{name}` with filename `{filename}` has been added.")
+
+    @comfy.command(name="add-lycoris")
+    @app_commands.describe(
+        name="The display name for the LyCORIS model",
+        filename="The filename of the LyCORIS model file",
+        default_weight="The default weight/strength for this LyCORIS model (0.0 to 2.0)",
+    )
+    async def add_lycoris(
+        self,
+        ctx: commands.Context,
+        name: str,
+        filename: str,
+        default_weight: float = 1.0,
+    ):
+        """Adds a LyCORIS model to the list of available options."""
+        if not 0.0 <= default_weight <= 2.0:
+            await ctx.send("Default weight must be between 0.0 and 2.0.")
+            return
+
+        async with self.config.lycoris() as lycoris:
+            lycoris[name.lower()] = filename
+        async with self.config.lycoris_weights() as weights:
+            weights[name.lower()] = default_weight
+        await ctx.send(
+            f"LyCORIS model `{name}` with filename `{filename}` and default weight `{default_weight}` has been added."
+        )
+
+    @comfy.command(name="toggle-lycoris-weight-lock")
+    @app_commands.describe(
+        locked="Whether to lock LyCORIS weights to admin-set defaults (true/false)"
+    )
+    async def toggle_lycoris_weight_lock(self, ctx: commands.Context, locked: bool):
+        """Toggles whether LyCORIS weights are locked to admin-set defaults for security."""
+        await self.config.lycoris_weight_locked.set(locked)
+        status = "locked" if locked else "unlocked"
+        await ctx.send(f"LyCORIS weights are now {status} to admin defaults.")
+
+    @comfy.command(name="set-lycoris-weight")
+    @app_commands.describe(
+        lycoris_name="The name of the LyCORIS model to set weight for",
+        weight="The weight/strength for this LyCORIS model (0.0 to 2.0)",
+    )
+    async def set_lycoris_weight(
+        self, ctx: commands.Context, lycoris_name: str, weight: float
+    ):
+        """Sets the default weight for a specific LyCORIS model."""
+        if not 0.0 <= weight <= 2.0:
+            await ctx.send("Weight must be between 0.0 and 2.0.")
+            return
+
+        lycoris = await self.config.lycoris()
+        if lycoris_name.lower() not in lycoris:
+            await ctx.send(f"LyCORIS model `{lycoris_name}` not found.")
+            return
+
+        async with self.config.lycoris_weights() as weights:
+            weights[lycoris_name.lower()] = weight
+        await ctx.send(
+            f"Default weight for LyCORIS model `{lycoris_name}` set to `{weight}`."
+        )
+
+    @comfy.command(name="set-nsfw-threshold")
+    @app_commands.describe(threshold="The NSFW detection threshold (0.0 to 1.0)")
+    async def set_nsfw_threshold(self, ctx: commands.Context, threshold: float):
+        """Sets the NSFW detection threshold (0.0 to 1.0)."""
+        if 0.0 <= threshold <= 1.0:
+            await self.config.nsfw_threshold.set(threshold)
+            await ctx.send(f"NSFW detection threshold set to `{threshold}`.")
+        else:
+            await ctx.send("Threshold must be between 0.0 and 1.0.")
+
+    @comfy.command(name="add-nsfw-notification")
+    @app_commands.describe(
+        user="The user to add to NSFW notification list",
+        channel="The channel where NSFW notifications will be sent",
+    )
+    async def add_nsfw_notification(
+        self, ctx: commands.Context, user: discord.Member, channel: discord.TextChannel
+    ):
+        """Adds a user to the NSFW notification list and sets the notification channel."""
+        # Check if user has permission (bot owner or guild owner)
+        if not (await ctx.bot.is_owner(ctx.author) or ctx.author == ctx.guild.owner):
+            await ctx.send(
+                "You must be the bot owner or guild owner to use this command."
+            )
+            return
+
+        async with self.config.nsfw_notification_users() as users:
+            if user.id not in users:
+                users.append(user.id)
+            else:
+                await ctx.send(
+                    f"{user.mention} is already in the NSFW notification list."
+                )
+                return
+
+        await self.config.nsfw_notification_channel.set(channel.id)
+        await ctx.send(
+            f"Added {user.mention} to NSFW notification list. Notifications will be sent to {channel.mention}."
+        )
+
+    @comfy.command(name="remove-nsfw-notification")
+    @app_commands.describe(user="The user to remove from NSFW notification list")
+    async def remove_nsfw_notification(
+        self, ctx: commands.Context, user: discord.Member
+    ):
+        """Removes a user from the NSFW notification list."""
+        # Check if user has permission (bot owner or guild owner)
+        if not (await ctx.bot.is_owner(ctx.author) or ctx.author == ctx.guild.owner):
+            await ctx.send(
+                "You must be the bot owner or guild owner to use this command."
+            )
+            return
+
+        async with self.config.nsfw_notification_users() as users:
+            if user.id in users:
+                users.remove(user.id)
+                await ctx.send(
+                    f"Removed {user.mention} from the NSFW notification list."
+                )
+            else:
+                await ctx.send(f"{user.mention} is not in the NSFW notification list.")
+
+    @comfy.command(name="set-admin-log-channel")
+    @app_commands.describe(channel="The channel where user command logs will be sent")
+    async def set_admin_log_channel(
+        self, ctx: commands.Context, channel: discord.TextChannel
+    ):
+        """Sets the channel where user command logs will be sent for security monitoring."""
+        await self.config.admin_log_channel.set(channel.id)
+        await ctx.send(f"Admin log channel set to {channel.mention}.")
+
+    @comfy.command(name="toggle-command-logging")
+    @app_commands.describe(
+        enabled="Whether to enable or disable command logging (true/false)"
+    )
+    async def toggle_command_logging(self, ctx: commands.Context, enabled: bool):
+        """Toggles whether user commands are logged for security reasons."""
+        await self.config.log_user_commands.set(enabled)
+        status = "enabled" if enabled else "disabled"
+        await ctx.send(f"Command logging has been {status}.")
+
+    @comfy.command(name="list-nsfw-notifications")
+    async def list_nsfw_notifications(self, ctx: commands.Context):
+        """Lists all users in the NSFW notification list and the notification channel."""
+        users = await self.config.nsfw_notification_users()
+        channel_id = await self.config.nsfw_notification_channel()
+
+        if not users and not channel_id:
+            await ctx.send("No NSFW notifications are configured.")
+            return
+
+        embed = discord.Embed(
+            title="NSFW Notification Settings", color=discord.Color.blue()
+        )
+
+        if channel_id:
+            channel = ctx.guild.get_channel(channel_id)
+            if channel:
+                embed.add_field(
+                    name="Notification Channel", value=channel.mention, inline=False
+                )
+            else:
+                embed.add_field(
+                    name="Notification Channel", value="Channel not found", inline=False
+                )
+
+        if users:
+            user_mentions = []
+            for user_id in users:
+                user = ctx.guild.get_member(user_id)
+                if user:
+                    user_mentions.append(user.mention)
+                else:
+                    user_mentions.append(f"<@{user_id}> (User not found)")
+
+            embed.add_field(
+                name="Notified Users", value="\n".join(user_mentions), inline=False
+            )
+
+        await ctx.send(embed=embed)
+
+    @commands.hybrid_command(name="generate")
     @commands.cooldown(1, 60, commands.BucketType.user)
     @app_commands.describe(
         model="The model to use for generation",
@@ -648,19 +1097,13 @@ class ComfyUI(commands.Cog):
                 embed.set_footer(text=f"User ID: {ctx.author.id}")
                 await admin_channel.send(embed=embed)
 
+        # Basic validation before queuing
         address = await self.config.address()
         workflow_file = await self.config.workflow_file()
         if not address or not workflow_file:
             await ctx.send(
                 "The ComfyUI address and workflow file must be set by the bot owner."
             )
-            return
-
-        try:
-            with open(workflow_file, "r", encoding="utf-8") as f:
-                workflow = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            await ctx.send("The workflow file is not found or is invalid.")
             return
 
         models = await self.config.models()
@@ -670,140 +1113,9 @@ class ComfyUI(commands.Cog):
             )
             return
 
-        loras = await self.config.loras()
-        lora_weights = await self.config.lora_weights()
-        lora_weight_locked = await self.config.lora_weight_locked()
-        embeddings = await self.config.embeddings()
-        lycoris = await self.config.lycoris()
-        lycoris_weights = await self.config.lycoris_weights()
-        lycoris_weight_locked = await self.config.lycoris_weight_locked()
-
-        workflow, lora_parts, lycoris_parts, embedding_parts = self._modify_workflow(
-            workflow,
-            model,
-            prompt,
-            models,
-            loras,
-            lora_weights,
-            lora_weight_locked,
-            embeddings,
-            lycoris,
-            lycoris_weights,
-            lycoris_weight_locked,
-        )
-
-        if lora_parts and lora_parts[0].split(":")[1].lower() not in loras:
-            await ctx.send("Could not find a LoraLoader node in the workflow.")
-        if lycoris_parts and lycoris_parts[0].split(":")[1].lower() not in lycoris:
-            await ctx.send("Could not find a LyCORIS model in the available options.")
-
-        await ctx.send(
-            f"🎨 Generating an image with the `{model}` model and your prompt. This may take a moment..."
-        )
-
-        client_id = str(uuid.uuid4())
-        # token = await self.config.token()
-        queued_prompt = await self.queue_prompt(workflow, client_id)
-        if not queued_prompt:
-            await ctx.send("Failed to queue the prompt.")
-            return
-
-        prompt_id = queued_prompt["prompt_id"]
-
-        # Websocket connection to get the result
-        ws_url = f"ws://{address}/ws?clientId={client_id}"
+        # Add to queue
         try:
-            async with aiohttp.ClientSession().ws_connect(ws_url) as ws:
-                async for msg in ws:
-                    if msg.type == aiohttp.WSMsgType.TEXT:
-                        message = json.loads(msg.data)
-                        if (
-                            message["type"] == "executing"
-                            and message["data"]["node"] is None
-                            and message["data"]["prompt_id"] == prompt_id
-                        ):
-                            break  # Execution is done
-        except (
-            aiohttp.ClientError,
-            aiohttp.WSServerHandshakeError,
-            json.JSONDecodeError,
-            KeyError,
-        ) as e:
-            await ctx.send(f"An error occurred during image generation: {e}")
-            return
-
-        history = await self.get_history(prompt_id)
-        if not history:
-            await ctx.send("Could not retrieve generation history.")
-            return
-
-        history_entry = history.get(prompt_id)
-        if not history_entry or "outputs" not in history_entry:
-            await ctx.send("Generation failed or produced no output.")
-            return
-
-        for _, node_output in history_entry["outputs"].items():
-            if "images" in node_output:
-                for image_data in node_output["images"]:
-                    image_bytes = await self.get_image(
-                        image_data["filename"],
-                        image_data["subfolder"],
-                        image_data["type"],
-                    )
-                    if image_bytes:
-                        # NSFW Check
-                        nsfw_threshold = await self.config.nsfw_threshold()
-                        if self.nsfw_detector.is_nsfw(
-                            io.BytesIO(image_bytes), nsfw_threshold
-                        ):
-                            # NSFW Notification
-                            notification_users = (
-                                await self.config.nsfw_notification_users()
-                            )
-                            notification_channel_id = (
-                                await self.config.nsfw_notification_channel()
-                            )
-
-                            if notification_users and notification_channel_id:
-                                notification_channel = ctx.guild.get_channel(
-                                    notification_channel_id
-                                )
-                                if notification_channel:
-                                    user_mentions = " ".join(
-                                        [
-                                            f"<@{user_id}>"
-                                            for user_id in notification_users
-                                        ]
-                                    )
-                                    embed = discord.Embed(
-                                        title="🚨 NSFW Content Detected",
-                                        description=f"**User:** {ctx.author.mention} ({ctx.author.name}#{ctx.author.discriminator})\n"
-                                        f"**Channel:** {ctx.channel.mention}\n"
-                                        f"**Model:** {model}\n"
-                                        f"**Prompt:** {prompt}\n"
-                                        f"**Threshold:** {nsfw_threshold}",
-                                        color=discord.Color.red(),
-                                        timestamp=ctx.message.created_at,
-                                    )
-                                    embed.set_footer(
-                                        text=f"User ID: {ctx.author.id}")
-                                    await notification_channel.send(
-                                        content=user_mentions, embed=embed
-                                    )
-
-                            await ctx.send(
-                                "The generated image was flagged as NSFW and has been deleted."
-                            )
-                            return
-
-                        # Watermarking
-                        watermarked_image = self.apply_watermark(
-                            image_bytes, ctx.author.name
-                        )
-
-                        await ctx.send(
-                            file=discord.File(
-                                io.BytesIO(watermarked_image),
-                                filename="generated_image.png",
-                            )
-                        )
+            self.queue.put_nowait((ctx, prompt, model))
+            await ctx.send(f"⏳ Added to queue. Position: {self.queue.qsize()}")
+        except asyncio.QueueFull:
+            await ctx.send("The queue is currently full. Please try again later.")

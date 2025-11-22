@@ -1,4 +1,8 @@
-# EditorConfig files for Python files related to the Monster Spawned Studios Red Bot Cogs.
+# EditorConfig is awesome: https://EditorConfig.org
+
+root = true
+ 
+
 [*.py]
 indent_style = space
 indent_size = 4
