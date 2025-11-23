@@ -10,12 +10,10 @@
   "files.autoSaveDelay": 10000,
   // Use the Python extension to manage the virtual environment
   "python.envFile": "${workspaceFolder}/.env",
-  // Set the current Python interpreter to the one in the PYTHON_VENV environment variable
-  // Preferably set this in your environment variables (less secure),
-  // or using a `.env` file (more secure).
+  // Set the current Python interpreter to the one in the .conda folder
   // This will ensure that the Python extension uses the correct interpreter for linting, debugging,
   // and running Python scripts.
-  // "python.defaultInterpreterPath": "${env:PYTHON_DEV_VENV}\\Scripts\\python.exe",
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
   // Enable word-based suggestions
   "editor.wordBasedSuggestions": "matchingDocuments",
   // Disable the Python language server

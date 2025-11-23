@@ -1,0 +1,13 @@
+Red-DiscordBot[all]
+pip
+wheel
+rcon
+aiohttp
+requests
+nsfw-image-detector
+comfy-cli
+psutil
+ffmpeg
+yt-dlp
+python-dotenv
+cryptography
