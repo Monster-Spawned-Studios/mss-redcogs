@@ -1,0 +1,19 @@
+{
+  "author": [
+    "Monster Spawned Studios"
+  ],
+  "install_msg": "Thanks for checking out my cogs!\nFor issues, bugs, or suggestions contact me in the discord support server here: https://discord.gg/c6HQUb7\nFor more information on my cogs go to my github here: <https://github.com/TrustyJAID/Trusty-cogs>",
+  "name": "MSS-Cogs",
+  "short": "Cogs by Monster Spawned Studios, adding various features to RedBot, for your convenience and enjoyment.",
+  "description": "A collection of cogs for RedBot, adding various features to RedBot, for your convenience and enjoyment, programmed by Monster Spawned Studios.",
+  "tags": [
+    "Fun",
+    "ComfyUI",
+    "Image Generation",
+    "Utility",
+    "RCON",
+    "CubeCoders",
+    "AMP",
+    "Valve RCON"
+  ]
+}
