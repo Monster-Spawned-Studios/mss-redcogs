@@ -1,7 +1,7 @@
 from redbot.core import Config, commands
 from redbot.core.bot import Red
 
-from utils import MSSUtils
+from msscommon.utils import MSSUtils
 
 
 class ConfigHelper(commands.Cog):

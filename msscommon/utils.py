@@ -9,7 +9,7 @@ from typing import Any, Callable
 from redbot.core import commands
 from redbot.core.bot import Red
 
-from .utils.general import MSSUtilsGeneral
+from msscommon.utils.general import MSSUtilsGeneral
 
 
 class MSSUtils(commands.Cog):

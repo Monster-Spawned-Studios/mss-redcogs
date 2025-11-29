@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
+from rcon import get_logger
 from rcon.battleye import Client as BattleyeClient
 from rcon.client import BaseClient
 from rcon.exceptions import EmptyResponse, SessionTimeout, WrongPassword
@@ -16,11 +17,10 @@ from redbot.core import commands
 from redbot.core.bot import Red
 from redbot.core.config import Config
 
-from rcon_cog import get_logger
-from rcon_cog.utils.clients.minecraft_bedrock import MinecraftBedrockClient
-from rcon_cog.utils.clients.minecraft_java import MinecraftJavaClient
-from rcon_cog.utils.clients.seven_days_client import SevenDaysToDieClient
-from rcon_cog.utils.config_helper import ConfigHelper
+from rconcog.utils.clients.minecraft_bedrock import MinecraftBedrockClient
+from rconcog.utils.clients.minecraft_java import MinecraftJavaClient
+from rconcog.utils.clients.seven_days_client import SevenDaysToDieClient
+from rconcog.utils.config_helper import ConfigHelper
 
 
 class RCON_Cog(commands.Cog):

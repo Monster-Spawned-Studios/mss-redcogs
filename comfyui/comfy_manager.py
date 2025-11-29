@@ -17,8 +17,8 @@ from shutil import make_archive, unpack_archive
 from redbot.core import commands
 from redbot.core.bot import Red
 
-from comfy_cog.comfy_utils import ComfyUtils
-from comfy_cog.config import ComfyUIConfig
+from comfyui.comfy_utils import ComfyUtils
+from comfyui.config import ComfyUIConfig
 
 
 class ComfyManager(commands.Cog):

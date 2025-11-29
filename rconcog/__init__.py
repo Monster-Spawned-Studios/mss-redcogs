@@ -1,11 +1,13 @@
 """
 Copyright (c) 2025 Monster Spawned Studios | https://monsterspawned.studio | All rights reserved.
+
+A cog to manage game servers using the RCON protocol and provide utilities for game servers.
 """
 
 import json
 from pathlib import Path
 
-from .amp_cog import AMPCog
+from rconcog.rcon_cog import RCON_Cog
 
 __version__ = ""
 __author__ = ""
@@ -25,8 +27,16 @@ except (FileNotFoundError, json.JSONDecodeError, KeyError, IndexError):
     __author__ = "Monster Spawned Studios"
 
 
+def get_logger(name: str):
+    """
+    Get a logger for the RCON cog.
+    """
+    # Use RedBot's built-in logging instead of loguru
+    return None  # Will be replaced with bot.log when cog is initialized
+
+
 async def setup(bot):
     """
-    Setup the AMP cog.
+    Setup the RCON cog.
     """
-    await bot.add_cog(AMPCog(bot))
+    await bot.add_cog(RCON_Cog(bot))

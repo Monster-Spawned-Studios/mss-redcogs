@@ -19,11 +19,12 @@ from nsfw_image_detector.detector import NSFWDetector
 from PIL import Image, ImageDraw, ImageFont
 from redbot.core import app_commands, commands
 from redbot.core.bot import Red
+from redbot.core.data_manager import cog_data_path
 
-from comfy_cog import __author__, __version__
-from comfy_cog.comfy_manager import ComfyManager
-from comfy_cog.config import ComfyUIConfig
-from mss_common.utils.security import decrypt_string, encrypt_string, generate_key
+from comfyui import __author__, __version__
+from comfyui.comfy_manager import ComfyManager
+from comfyui.config import ComfyUIConfig
+from msscommon.utils.security import decrypt_string, encrypt_string, generate_key
 
 
 class ComfyUI(commands.Cog):
@@ -83,8 +84,11 @@ class ComfyUI(commands.Cog):
             return
 
         try:
-            with open(workflow_file, "r", encoding="utf-8") as f:
-                workflow = json.load(f)
+            def read_json(filename):
+                with open(filename, "r", encoding="utf-8") as f:
+                    return json.load(f)
+
+            workflow = await self.bot.loop.run_in_executor(None, read_json, workflow_file)
         except (FileNotFoundError, json.JSONDecodeError):
             await ctx.send("The workflow file is not found or is invalid.")
             return
@@ -126,10 +130,16 @@ class ComfyUI(commands.Cog):
         # Retrieve and decrypt auth token
         auth_token = None
         encrypted_token = await self.config.user(ctx.author).auth_token()
-        if encrypted_token:
-            key = await self.config.encryption_key()
-            if key:
-                auth_token = decrypt_string(encrypted_token, key)
+        key = await self.config.encryption_key()
+
+        if encrypted_token and key:
+            auth_token = decrypt_string(encrypted_token, key)
+
+        # Fallback to global token if no user token
+        if not auth_token:
+            encrypted_global_token = await self.config.global_auth_token()
+            if encrypted_global_token and key:
+                auth_token = decrypt_string(encrypted_global_token, key)
 
         client_id = str(uuid.uuid4())
         queued_prompt = await self.queue_prompt(workflow, client_id, auth_token)
@@ -140,7 +150,9 @@ class ComfyUI(commands.Cog):
         prompt_id = queued_prompt["prompt_id"]
 
         # Websocket connection to get the result
-        ws_url = f"ws://{address}/ws?clientId={client_id}"
+        ws_protocol = "wss" if address.startswith("https://") else "ws"
+        ws_address = address.replace("https://", "").replace("http://", "")
+        ws_url = f"{ws_protocol}://{ws_address}/ws?clientId={client_id}"
         headers = {}
         if auth_token:
             headers["Authorization"] = f"Bearer {auth_token}"
@@ -182,7 +194,7 @@ class ComfyUI(commands.Cog):
                         image_data["filename"],
                         image_data["subfolder"],
                         image_data["type"],
-                        auth_token
+                        token=auth_token
                     )
                     if image_bytes:
                         # NSFW Check
@@ -255,30 +267,6 @@ class ComfyUI(commands.Cog):
 
         await ctx.send(f"✅ Generation finished for **{ctx.author.display_name}**!")
 
-    async def get_image(self, filename, subfolder, folder_type):
-        """
-        Gets an image from the ComfyUI server.
-
-        Args:
-            filename (str): The filename of the image.
-            subfolder (str): The subfolder of the image.
-            folder_type (str): The type of folder the image is in.
-
-        Returns:
-            bytes: The image data.
-        """
-        address = await self.config.address()
-        if not address:
-            return None
-
-        headers = {}
-        auth_token_enc = await self.config.user(self.bot.user).auth_token() # Using bot user as fallback/default context might be wrong, need context user
-        # Actually get_image is called from do_generation which has ctx, but get_image signature doesn't have ctx or user.
-        # I need to pass the user to get_image or store it.
-        # Let's update get_image signature to accept token or user.
-        # Wait, get_image is internal. I should pass the headers or token.
-        pass
-
     async def get_image(self, filename, subfolder, folder_type, token=None):
         """
         Gets an image from the ComfyUI server.
@@ -300,12 +288,16 @@ class ComfyUI(commands.Cog):
         if token:
             headers["Authorization"] = f"Bearer {token}"
 
-        url = f"http://{address}/view?filename={filename}&subfolder={subfolder}&type={folder_type}"
+        protocol = "https" if address.startswith("https://") else "http"
+        clean_address = address.replace("https://", "").replace("http://", "")
+        url = f"{protocol}://{clean_address}/view?filename={filename}&subfolder={subfolder}&type={folder_type}"
         async with aiohttp.ClientSession() as session:
             async with session.get(url, headers=headers) as response:
                 if response.status == 200:
                     return await response.read()
                 return None
+
+
 
     async def queue_prompt(self, prompt, client_id, token=None):
         """
@@ -328,11 +320,14 @@ class ComfyUI(commands.Cog):
             if token:
                 headers["Authorization"] = f"Bearer {token}"
 
+            protocol = "https" if address.startswith("https://") else "http"
+            clean_address = address.replace("https://", "").replace("http://", "")
+
             p = {"prompt": prompt, "client_id": client_id}
             data = json.dumps(p).encode("utf-8")
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    f"http://{address}/prompt", data=data, headers=headers
+                    f"{protocol}://{clean_address}/prompt", data=data, headers=headers
                 ) as response:
                     if response.status == 200:
                         return await response.json()
@@ -361,9 +356,12 @@ class ComfyUI(commands.Cog):
             headers["Authorization"] = f"Bearer {token}"
 
         try:
+            protocol = "https" if address.startswith("https://") else "http"
+            clean_address = address.replace("https://", "").replace("http://", "")
+
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    f"http://{address}/history/{prompt_id}", headers=headers
+                    f"{protocol}://{clean_address}/history/{prompt_id}", headers=headers
                 ) as response:
                     if response.status == 200:
                         return await response.json()
@@ -586,6 +584,34 @@ class ComfyUI(commands.Cog):
         await self.config.user(ctx.author).auth_token.set(encrypted_token)
         await ctx.send(f"Authentication token stored securely for {ctx.author.mention}.", delete_after=10)
 
+    @comfy.command(name="set-global-token")
+    @app_commands.describe(token="The global authentication token for the ComfyUI server")
+    async def set_global_token(self, ctx: commands.Context, token: str):
+        """
+        Sets a global authentication token for the ComfyUI server.
+        This token will be used if a user does not have their own token set.
+        The token is encrypted before storage.
+        """
+        # Delete the message to protect the token if possible
+        if ctx.guild and ctx.channel.permissions_for(ctx.guild.me).manage_messages:
+            try:
+                await ctx.message.delete()
+            except (discord.Forbidden, discord.NotFound):
+                pass
+
+        key = await self.config.encryption_key()
+        if not key:
+            key = generate_key()
+            await self.config.encryption_key.set(key)
+
+        encrypted_token = encrypt_string(token, key)
+        if not encrypted_token:
+            await ctx.send("Failed to encrypt token. Please check logs.")
+            return
+
+        await self.config.global_auth_token.set(encrypted_token)
+        await ctx.send("Global authentication token stored securely.", delete_after=10)
+
     @comfy.command(name="set-address")
     @app_commands.describe(
         address="The address of the ComfyUI server (e.g., localhost:8188)"
@@ -604,8 +630,34 @@ class ComfyUI(commands.Cog):
 
     @comfy.command(name="set-workflow")
     @app_commands.describe(path="The path to the ComfyUI API workflow JSON file")
-    async def set_workflow(self, ctx: commands.Context, path: str):
-        """Sets the path to the ComfyUI API workflow JSON file."""
+    async def set_workflow(self, ctx: commands.Context, path: str = None):
+        """
+        Sets the path to the ComfyUI API workflow JSON file.
+        You can also upload a JSON file as an attachment to this command.
+        """
+        if ctx.message.attachments:
+            attachment = ctx.message.attachments[0]
+            if not attachment.filename.endswith(".json"):
+                await ctx.send("Please upload a valid JSON file.")
+                return
+
+            # Create workflows directory if it doesn't exist
+            workflow_dir = cog_data_path(self) / "workflows"
+            workflow_dir.mkdir(parents=True, exist_ok=True)
+
+            file_path = workflow_dir / attachment.filename
+
+            try:
+                await attachment.save(file_path)
+                path = str(file_path)
+            except Exception as e:
+                await ctx.send(f"Failed to save workflow file: {e}")
+                return
+
+        if not path:
+            await ctx.send("Please provide a file path or upload a JSON file.")
+            return
+
         await self.config.workflow_file.set(path)
         await ctx.send(f"ComfyUI workflow file path set to: `{path}`")
 

@@ -21,7 +21,11 @@ class ComfyUIConfig(commands.Cog):
 
     def __init__(self, bot: Red):
         self.bot = bot
-        self.COG_ID = int(getenv("COMFY_COG_ID"))
+        try:
+            self.COG_ID = int(getenv("COMFY_COG_ID", "0"))
+        except (ValueError, TypeError):
+            self.COG_ID = 0
+
         self.dev_mode = self.is_development_mode()
         self.config = Config.get_conf(
             self, identifier=self.COG_ID, force_registration=True
@@ -35,7 +39,7 @@ class ComfyUIConfig(commands.Cog):
             "comfy_host": "127.0.0.1",
             "comfy_port": 8188,
             "address": "127.0.0.1:8188",
-            "workflow_file": File(""),
+            "workflow_file": "",
             "models": {},
             "loras": {},
             "lora_weights": {},
@@ -52,6 +56,7 @@ class ComfyUIConfig(commands.Cog):
             "extra_launch_arguments": "",
             "enable_experimental_features": False,
             "encryption_key": None,
+            "global_auth_token": None,
         }
         experimental_global = {
             "enable_instance_management": False,
