@@ -1,7 +1,6 @@
 # EditorConfig is awesome: https://EditorConfig.org
 
 root = true
- 
 
 [*.py]
 indent_style = space
