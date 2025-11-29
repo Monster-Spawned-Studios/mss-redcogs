@@ -49,6 +49,7 @@ class ComfyUIConfig(commands.Cog):
             "lycoris_weights": {},
             "lycoris_weight_locked": True,
             "nsfw_threshold": 0.7,
+            "nsfw_lora_name": "NSFWFilter.safetensors",
             "nsfw_notification_channel": 0,
             "nsfw_notification_users": [],
             "log_user_commands": True,

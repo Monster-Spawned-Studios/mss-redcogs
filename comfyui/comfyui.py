@@ -15,7 +15,6 @@ import uuid
 
 import aiohttp
 import discord
-from nsfw_image_detector.detector import NSFWDetector
 from PIL import Image, ImageDraw, ImageFont
 from redbot.core import app_commands, commands
 from redbot.core.bot import Red
@@ -40,7 +39,6 @@ class ComfyUI(commands.Cog):
         configclass = ComfyUIConfig(bot)
         self.config = configclass.config
         self.dev_mode = configclass.dev_mode
-        self.nsfw_detector = NSFWDetector()
         self.queue = asyncio.Queue(maxsize=10)
         self.cooldown = 90
         self.cooldown_type = commands.BucketType.user
@@ -108,6 +106,9 @@ class ComfyUI(commands.Cog):
         lycoris_weights = await self.config.lycoris_weights()
         lycoris_weight_locked = await self.config.lycoris_weight_locked()
 
+        nsfw_lora_name = await self.config.nsfw_lora_name()
+        nsfw_threshold = await self.config.nsfw_threshold()
+
         workflow, lora_parts, lycoris_parts, embedding_parts = self._modify_workflow(
             workflow,
             model,
@@ -120,6 +121,8 @@ class ComfyUI(commands.Cog):
             lycoris,
             lycoris_weights,
             lycoris_weight_locked,
+            nsfw_lora_name,
+            nsfw_threshold,
         )
 
         if lora_parts and lora_parts[0].split(":")[1].lower() not in loras:
@@ -197,57 +200,6 @@ class ComfyUI(commands.Cog):
                         token=auth_token
                     )
                     if image_bytes:
-                        # NSFW Check
-                        nsfw_threshold = await self.config.nsfw_threshold()
-                        # Run NSFW check in executor
-                        is_nsfw = await self.bot.loop.run_in_executor(
-                            None,
-                            self.nsfw_detector.is_nsfw,
-                            io.BytesIO(image_bytes),
-                            nsfw_threshold
-                        )
-
-                        if is_nsfw:
-                            # NSFW Notification
-                            notification_users = (
-                                await self.config.nsfw_notification_users()
-                            )
-                            notification_channel_id = (
-                                await self.config.nsfw_notification_channel()
-                            )
-
-                            if notification_users and notification_channel_id:
-                                notification_channel = ctx.guild.get_channel(
-                                    notification_channel_id
-                                )
-                                if notification_channel:
-                                    user_mentions = " ".join(
-                                        [
-                                            f"<@{user_id}>"
-                                            for user_id in notification_users
-                                        ]
-                                    )
-                                    embed = discord.Embed(
-                                        title="🚨 NSFW Content Detected",
-                                        description=f"**User:** {ctx.author.mention} ({ctx.author.name}#{ctx.author.discriminator})\n"
-                                        f"**Channel:** {ctx.channel.mention}\n"
-                                        f"**Model:** {model}\n"
-                                        f"**Prompt:** {prompt}\n"
-                                        f"**Threshold:** {nsfw_threshold}",
-                                        color=discord.Color.red(),
-                                        timestamp=ctx.message.created_at,
-                                    )
-                                    embed.set_footer(
-                                        text=f"User ID: {ctx.author.id}")
-                                    await notification_channel.send(
-                                        content=user_mentions, embed=embed
-                                    )
-
-                            await ctx.send(
-                                "The generated image was flagged as NSFW and has been deleted."
-                            )
-                            return
-
                         # Watermarking
                         # Run watermarking in executor
                         watermarked_image = await self.bot.loop.run_in_executor(
@@ -425,6 +377,8 @@ class ComfyUI(commands.Cog):
         lycoris,
         lycoris_weights,
         lycoris_weight_locked,
+        nsfw_lora_name,
+        nsfw_threshold,
     ):
         """
         Modifies the workflow with user input for model, prompt, LoRAs, embeddings, and LyCORIS.
@@ -441,6 +395,8 @@ class ComfyUI(commands.Cog):
             lycoris (dict): Available LyCORIS models
             lycoris_weights (dict): Default LyCORIS weights
             lycoris_weight_locked (bool): Whether LyCORIS weights are locked
+            nsfw_lora_name (str): The name of the NSFW filter LoRA
+            nsfw_threshold (float): The NSFW threshold
 
         Returns:
             tuple: (modified_workflow, lora_parts, lycoris_parts, embedding_parts)
@@ -456,6 +412,90 @@ class ComfyUI(commands.Cog):
         )
         if checkpoint_loader_node:
             checkpoint_loader_node["inputs"]["ckpt_name"] = models[model.lower()]
+
+        # Inject NSFW Filter LoRA if configured
+        if nsfw_lora_name:
+            # Find a LoraLoader or create one (simplification: assume we hijack an existing one or just add it if we can find where to plug it)
+            # Actually, injecting a node into a graph without knowing the structure is hard.
+            # A better approach for "injection" in ComfyUI workflows via API is to find the connection between CheckpointLoader and the next node (usually CLIPTextEncode or LoraLoader) and insert our LoRA.
+            # However, simpler might be to just look for a LoraLoader that is *intended* for this, or just append it if we can find the flow.
+            # Given the complexity, I'll assume the user might have a "NSFWFilter" node or we just try to find a LoraLoader and set it if it's unused, OR we just look for a node with a specific name/title?
+            # Let's try to find a LoraLoader that is NOT being used by the user's prompt (which we haven't parsed yet fully).
+            # Actually, the request says "Modify the comfyui cog to use an NSFWFilter LoRA...".
+            # If I can't easily inject, maybe I should just look for a specific node to set.
+            # But "injection" implies adding it.
+            # Let's try to find the CheckpointLoader and see if we can chain a LoRA.
+            # This is risky without a robust graph manipulation lib.
+            # Alternative: Just look for a LoraLoader with a specific name or just add one if the workflow supports it?
+            # Let's stick to the "mapped input" part for the threshold.
+            # For the LoRA, maybe we just assume there's a LoraLoader we can use, or we just don't inject if we can't do it safely.
+            # BUT, the user said "use an NSFWFilter LoRA... for simplicity".
+            # Let's try to find a node with class_type "LoraLoader" and set its lora_name if it's not already set?
+            # Or better: Look for a node with title "NSFW Filter" or similar?
+            # Let's implement the threshold mapping first as it's clearer.
+
+            # Map NSFW Threshold
+            for node in workflow.values():
+                if "inputs" in node:
+                    for input_name, input_value in node["inputs"].items():
+                        if input_name == "nsfw_threshold":
+                             node["inputs"][input_name] = nsfw_threshold
+
+            # Inject LoRA logic:
+            # We will look for a LoraLoader that has a specific name in the workflow (e.g. title "NSFW Filter") or just try to add it.
+            # Since I can't easily add nodes without breaking connections, I will assume the workflow *already has* a LoraLoader intended for this,
+            # OR I will look for a LoraLoader that is currently set to the configured nsfw_lora_name (to update it) or just one that is empty?
+            # Let's try to find a LoraLoader whose lora_name is the nsfw_lora_name (to update strength?) or just set it.
+            # Actually, if the user wants to *use* it, they probably want it *added*.
+            # Let's assume the user has a workflow with a LoraLoader for this purpose, maybe identified by a custom title or just by being there?
+            # A safer bet: If `nsfw_lora_name` is set, we look for a LoraLoader node and if we find one that seems to be the "main" one or just *any* LoraLoader, we might overwrite it? No, that's bad.
+            # Let's look for a LoraLoader where the `lora_name` matches the config `nsfw_lora_name` (so we can update strength?)
+            # Or maybe we just don't inject it if it's not there, but we *do* set the threshold.
+            # Wait, the request says "Modify... to use an NSFWFilter LoRA...". This implies the code should make it happen.
+            # If I can't inject, I can't fulfill the request.
+            # Let's try to find the connection from CheckpointLoaderSimple.
+            # 1. Find CheckpointLoaderSimple (id: X)
+            # 2. Find what connects to X (output 0).
+            # 3. Insert LoraLoader in between.
+            #    - Create new LoraLoader node (id: New)
+            #    - New.inputs.model = X.outputs.0 (conceptually)
+            #    - New.inputs.clip = X.outputs.1
+            #    - Find nodes that used X.outputs.0 and point them to New.outputs.0
+            #    - Find nodes that used X.outputs.1 and point them to New.outputs.1
+            # This is the robust way.
+
+            # Implementation of robust injection:
+            # We need to find the ID of the CheckpointLoader.
+            ckpt_node_id = next((k for k, v in workflow.items() if v["class_type"] == "CheckpointLoaderSimple"), None)
+            if ckpt_node_id:
+                # Create a new node ID
+                new_id = str(max([int(k) for k in workflow.keys()] + [0]) + 1)
+
+                # Create the LoraLoader node
+                workflow[new_id] = {
+                    "class_type": "LoraLoader",
+                    "inputs": {
+                        "lora_name": nsfw_lora_name,
+                        "strength_model": 1.0, # Default strength
+                        "strength_clip": 1.0,
+                        "model": [ckpt_node_id, 0],
+                        "clip": [ckpt_node_id, 1]
+                    }
+                }
+
+                # Re-route connections
+                # We need to find all nodes that use [ckpt_node_id, 0] (MODEL) and [ckpt_node_id, 1] (CLIP)
+                # and change them to [new_id, 0] and [new_id, 1]
+                for node in workflow.values():
+                    if node == workflow[new_id]: continue # Skip our new node
+                    if "inputs" in node:
+                        for input_key, input_val in node["inputs"].items():
+                            if isinstance(input_val, list) and len(input_val) == 2:
+                                if input_val[0] == ckpt_node_id:
+                                    if input_val[1] == 0: # MODEL
+                                        node["inputs"][input_key] = [new_id, 0]
+                                    elif input_val[1] == 1: # CLIP
+                                        node["inputs"][input_key] = [new_id, 1]
 
         positive_prompt_node = next(
             (
