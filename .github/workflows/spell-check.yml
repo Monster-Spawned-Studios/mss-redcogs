@@ -15,7 +15,7 @@ jobs:
       - name: Install cSpell
         run: npm install -g cspell@latest @cspell/cspell-json-reporter@latest
       - name: Spell Checker
-        run: cspell "**/*" --config .vscode/cspell.json --no-progress --no-summary --reporter @cspell/cspell-json-reporter --reporter-options outFile=cspell-results.json
+        run: cspell "**/*" --config .vscode/cspell.json --no-progress --no-summary --reporter @cspell/cspell-json-reporter
       - name: Upload cSpell Report
         uses: actions/upload-artifact@v4
         with:
