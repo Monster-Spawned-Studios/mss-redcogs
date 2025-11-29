@@ -921,9 +921,6 @@ class ComfyUI(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.hybrid_command(name="generate")
-        await ctx.send(f"Default weight for LoRA `{lora_name}` set to `{weight}`.")
-
     @comfy.command(name="add-embedding")
     @app_commands.describe(
         name="The display name for the embedding",
